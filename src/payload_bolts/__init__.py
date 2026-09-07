@@ -46,15 +46,34 @@ resolve whether the Milestone 2 minimum-strength 8 mm bolt remains a
 defensible conceptual choice once preload feasibility and local-joint
 screening are added.
 
-Explicitly out of scope through Milestone 5 (deferred to later
-milestones): torque-to-preload conversion / nut factor / torque
-coefficient / lubrication / thread friction / under-head friction,
-preload relaxation/embedment, thermal preload change, fatigue, prying,
+Milestone 6 scope: a transparent nut-factor torque-to-preload model on
+top of the unchanged Milestone 1-5 results, for the Milestone 5
+selected 10 mm conceptual candidate -- the classical `T = K*F*d`
+relation and its inverse, a deterministic (non-statistical) nut-factor
+uncertainty range, the resulting "robust torque window" (a torque
+range that keeps achieved preload inside the Milestone 4/5 target
+window for EVERY nut factor in the declared range, honestly reported
+infeasible when it is), a predeclared midpoint nominal-torque rule,
+achieved-preload spread across the nut-factor range, an in-service
+proof-load carry-forward at the bounding (highest) achieved preload,
+a diagnostic torque back-calculation for the historical Milestone 3
+selected preload, and a bolt-size torque-feasibility comparison. Not a
+production torque specification, qualification procedure, statistical
+process-capability analysis, detailed threaded-contact model, or
+certified installation requirement.
+
+Explicitly out of scope through Milestone 6 (deferred to later
+milestones): detailed thread friction / under-head friction modeled
+separately, lubrication-specific coefficients, torque-angle
+tightening, bolt-elongation or ultrasonic preload measurement,
+hydraulic tensioning, prevailing-torque effects, preload
+relaxation/embedment, thermal preload change, fatigue, prying,
 nonlinear plate flexibility, detailed flange bending, detailed
 bearing/tear-out interaction, net-section rupture, nonlinear contact
 FEA, fracture mechanics, thread stripping (explicitly not modeled, see
-above), proof testing, detailed fastener standards/database lookup,
-structural optimization, and certification/qualification.
+Milestone 5), installation process-capability analysis, proof testing,
+detailed fastener standards/database lookup, structural optimization,
+and certification/qualification.
 """
 
 from .geometry import BoltPattern, circular_pattern, rectangular_pattern
@@ -121,6 +140,20 @@ from .joint_local_checks import (
     evaluate_candidate_trade,
     select_bolt_candidate,
 )
+from .torque_preload import (
+    NutFactorModel,
+    NominalTorqueWindow,
+    RobustTorqueWindowResult,
+    TorqueInstallationStatus,
+    TorqueInstallationResult,
+    TorqueBackCalculation,
+    torque_from_preload,
+    preload_from_torque,
+    nominal_torque_window,
+    robust_torque_window,
+    assess_torque_installation,
+    back_calculate_torque,
+)
 
 __all__ = [
     "BoltPattern",
@@ -180,6 +213,18 @@ __all__ = [
     "thread_strip_not_modeled",
     "evaluate_candidate_trade",
     "select_bolt_candidate",
+    "NutFactorModel",
+    "NominalTorqueWindow",
+    "RobustTorqueWindowResult",
+    "TorqueInstallationStatus",
+    "TorqueInstallationResult",
+    "TorqueBackCalculation",
+    "torque_from_preload",
+    "preload_from_torque",
+    "nominal_torque_window",
+    "robust_torque_window",
+    "assess_torque_installation",
+    "back_calculate_torque",
 ]
 
 __version__ = "0.1.0"

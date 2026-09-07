@@ -1029,4 +1029,248 @@ python examples/bolt_strength_sizing.py
 python examples/preloaded_joint_screening.py
 python examples/preload_feasibility_screening.py
 python examples/bolt_candidate_trade.py
+python examples/torque_preload_screening.py
 ```
+
+---
+
+# Milestone 6 — torque-to-preload sizing, installation scatter, and installation-robustness screening
+
+**Milestone 6 closes the major implementation gap left after Milestone
+5: Milestones 3–5 all reason directly in terms of achieved bolt
+preload, without asking how that preload would actually be installed.
+This is still a reduced-order conceptual study. It is NOT a production
+torque specification, a qualification procedure, a statistical
+process-capability analysis, a detailed threaded-contact model, or a
+certified installation requirement.**
+
+## Why torque-to-preload mapping matters
+
+A wrench applies torque, not preload. The two are related only through
+friction-dominated installation physics — thread friction, under-head
+friction, lubrication, surface finish — none of which Milestones 3–5
+modeled. Milestone 6 asks the practical question directly: can a single
+declared installation torque reliably keep the Milestone 5 selected
+10 mm candidate's achieved preload inside the Milestone 4/5 target
+window, given realistic friction (nut-factor) uncertainty?
+
+## Nut-factor equation
+
+```
+T = K * F * d          F = T / (K * d)
+```
+
+`T` = installation torque (N·m), `K` = dimensionless nut factor,
+`F` = preload (N), `d` = nominal bolt diameter (m). This is a
+first-order, empirically-fitted relation — not a first-principles
+thread-mechanics model — and it is friction-dominated: for a **fixed**
+applied torque, a **lower** K (less friction) produces a **higher**
+achieved preload, and vice versa.
+
+## Baseline K assumptions
+
+`K_min = 0.15`, `K_nom = 0.20`, `K_max = 0.25` (illustrative; source:
+engineeringlibrary.org's NASA preloaded-joint methodology page — the
+same source cited in Milestone 4 — gives lubricated K ≈ 0.11–0.15,
+unlubricated K ≈ 0.2, and states `Po = (T/KD)(1.0±u)`, algebraically
+the same relation used here; a secondary search-summarized source
+corroborates dry K≈0.20, lubricated K≈0.15–0.17). Nut-factor
+uncertainty is treated **deterministically** (a declared range), not
+statistically.
+
+## Nominal vs. robust torque window
+
+The **nominal** mapping (`T = K_nom·d·F_target,{min,max}`) uses only
+`K_nom` and is **not** robust to K uncertainty. The **robust** torque
+window asks: what torque range guarantees the achieved preload stays
+inside `[F_target,min, F_target,max]` for **every** K in
+`[K_min, K_max]`? Since achieved preload falls as K rises (fixed
+torque), the binding cases are:
+
+```
+T_robust,min = K_max * d * F_target,min
+T_robust,max = K_min * d * F_target,max
+```
+
+A robust window exists only if `T_robust,min <= T_robust,max`. Width is
+**never** clipped — a negative width is reported as infeasible, not
+corrected.
+
+## Ratio feasibility identity (independently verified)
+
+```
+K_max / K_min  <=  F_target,max / F_target,min
+```
+
+This is the clean, direct explanation for *why* torque-only preload
+control can be difficult: it fails whenever the friction-uncertainty
+ratio exceeds the preload-window ratio, regardless of the absolute
+torque magnitudes involved.
+
+## Baseline 10 mm result — the central finding
+
+| Quantity | Value |
+|---|---|
+| M4/M5 target window | [32,509.1, 48,891.0] N (width 16,381.9 N) |
+| Preload-window ratio `F_max/F_min` | 1.5039 |
+| K uncertainty ratio `K_max/K_min` | 1.6667 |
+| `T_robust,min` | 81.273 N·m |
+| `T_robust,max` | 73.337 N·m |
+| Robust window width | **−7.936 N·m (infeasible)** |
+| Status | `NO_ROBUST_TORQUE_WINDOW` |
+
+**Genuine finding, reported honestly, not forced:** the M5-selected
+10 mm candidate's **direct** preload window (M4/M5) is feasible, but at
+the illustrative baseline nut-factor range `K=[0.15, 0.25]` it has **no
+robust torque window** — because `1.6667 > 1.5039`, no single torque
+can guarantee the achieved preload stays inside the target window for
+every friction condition in that range. Torque-only control cannot be
+relied on by itself here under these assumptions. This is exactly the
+kind of conclusion this milestone was designed to surface rather than
+assume.
+
+## Historical M3 preload torque back-calculation (diagnostic only)
+
+Torque required to produce the historical M3 selected preload
+(35,109.8 N/bolt) at 10 mm, purely diagnostic (never a production
+torque spec):
+
+| K | Torque (N·m) |
+|---|---|
+| 0.15 | 52.665 |
+| 0.20 | 70.220 |
+| 0.25 | 87.775 |
+
+## In-service proof check (carried forward)
+
+Where a robust window *does* exist (e.g. the narrow `K=[0.18,0.22]`
+sensitivity case below), the maximum achieved preload occurs at `K_min`
+and is carried forward through the exact Milestone 3 closed-joint
+formula `F_bolt = F_preload + C·T_sep` (no double-counting) to confirm
+it does not exceed the proof load.
+
+## Sensitivity
+
+- **Nut-factor range width**: narrow `[0.18,0.22]` (ratio 1.222) is
+  **feasible** (width +16.48 N·m, nominal torque 79.76 N·m); nominal
+  `[0.15,0.25]` (ratio 1.667) and wide `[0.12,0.28]` (ratio 2.333) are
+  both **infeasible** — tighter friction control directly resolves the
+  baseline finding.
+- **Preload scatter `delta_F`** (5%/10%/20%): robust window stays
+  infeasible and gets progressively worse (width −3.66 → −7.94 → −18.10
+  N·m) as scatter allowance grows.
+- **Friction `mu`** (0.10–0.40, carried forward from M3): robust window
+  flips feasible at `mu ≥ 0.25` (width +0.54 N·m), consistent with M4/M5's
+  own friction-sensitivity transition.
+- **Proof fraction `eta_proof`** (0.60/0.70/0.80): robust window remains
+  infeasible throughout this range at 10 mm (widths −22.60 to −3.05
+  N·m) — closing but not crossing zero.
+- **Bolt size** (8/10/12 mm): 8 mm fails even the direct window; 10 mm
+  has a feasible direct window but an **infeasible robust torque
+  window**; **12 mm is robust at the baseline K range** (width +29.20
+  N·m) — this is the single largest sensitivity effect observed.
+- **Nut-factor nominal value `K_nom`** (fixed ±0.025 half-width):
+  nominal torque scales linearly with `K_nom`, as expected from
+  `T=K·F·d`.
+
+## Verification summary (Milestone 6)
+
+- `T=K·F·d` and its inverse verified by hand calculation and exact
+  round-trip; torque verified proportional to both `d` and `K` at fixed
+  preload; achieved preload verified proportional to `1/K` at fixed
+  torque, with the minimum at `K_max` and maximum at `K_min`.
+- Nominal and robust torque bounds verified by hand formula.
+- Exact robust-window boundary (`T_robust,min == T_robust,max`) verified
+  to give zero width and `feasible=True`; the ratio identity
+  `K_max/K_min == F_target,max/F_target,min` independently verified at
+  that exact boundary.
+- Infeasible case (K ratio too large) and feasible case (K ratio small
+  enough) both verified against the ratio identity directly.
+- Midpoint nominal torque verified to lie inside the robust window, and
+  achieved preload at every K in the declared range verified to lie
+  inside the target window whenever a robust window exists (proven
+  algebraically in the module docstring, confirmed numerically).
+- Historical M3 preload torque back-calculation verified by hand at
+  `K_min`/`K_nom`/`K_max`, with torque verified increasing with `K`.
+- `NO_ROBUST_TORQUE_WINDOW` verified to never invent a nominal torque or
+  achieved-preload figures.
+- In-service proof carry-forward verified to use the achieved preload
+  exactly once (no double-counting), via an independent hand
+  reconstruction from Milestone 1's raw signed axial loads.
+- Milestone 4 target-window bounds for 8 mm and 10 mm, and the
+  Milestone 3 required-preload values, all verified preserved exactly.
+- Milestone 5's 10 mm selection independently reproduced before torque
+  screening.
+- Invalid `K<=0`, `d<=0`, `T<0`/`F<0`, `K_min>K_max` (and `k_nom`
+  outside `[k_min,k_max]`) all verified rejected; a zero-width K range
+  verified to collapse the robust window exactly onto the nominal
+  torque mapping.
+- **All 182 Milestone 1–5 tests remain unchanged and passing; 30 new
+  Milestone 6 tests added (212 total).**
+
+## Limitations
+
+Milestone 1–5 limitations all still apply. In addition, for Milestone 6:
+
+- No detailed thread friction or under-head friction modeled
+  separately (both are lumped into the single nut factor K).
+- No lubrication-specific coefficients tied to a real product/coating.
+- No torque-angle tightening, bolt-elongation measurement, ultrasonic
+  preload measurement, or hydraulic tensioning.
+- No prevailing-torque effects.
+- No preload relaxation/embedment, no thermal preload change.
+- No fatigue, no prying, no nonlinear joint opening.
+- No installation process-capability analysis — K uncertainty is
+  treated as a deterministic declared range, not a statistical
+  distribution.
+- No proof testing.
+- No certification/qualification claim of any kind.
+- No new figures this milestone, for the same reason stated in
+  Milestone 5: this repository has no plotting-library dependency, and
+  the text-table sensitivity studies communicate the robust/infeasible
+  transitions clearly without one.
+
+---
+
+# Final project synthesis (Milestones 1–6)
+
+- **M1 — load distribution**: rigid, equal-stiffness bolt-group model;
+  8-bolt circular pattern; max tensile bolt 1 at 24,142.1 N; equilibrium
+  verified to machine precision.
+- **M2 — strength screening**: illustrative tensile/shear/interaction
+  margins; 8 mm is the smallest **strength**-passing candidate
+  (governing bolt 1, interaction mode).
+- **M3 — required preload**: analytical separation/slip-required
+  preload (29,258.2 N/bolt, slip-governed at bolt 0) — a screening
+  quantity, never a torque spec.
+- **M4 — proof-based installation window**: 8 mm has **no feasible
+  installation-preload window** (target_min 32,509.1 N > target_max
+  31,290.3 N) under illustrative proof/scatter assumptions.
+- **M5 — local joint checks + conceptual selection**: 8 mm rejected
+  specifically on M4 grounds (bearing/edge/spacing all pass
+  comfortably at 8 mm); **10 mm becomes the smallest admissible
+  conceptual candidate** by the predeclared rule.
+- **M6 — torque-to-preload robustness**: 10 mm's **direct** preload
+  window is feasible, but it has **no robust torque window** at the
+  illustrative baseline nut-factor range `K=[0.15,0.25]` — friction
+  uncertainty alone can push the achieved preload outside the target
+  window for a single fixed torque.
+
+**Strongest final conclusion, stated only as far as this reduced-order
+model supports:** under the illustrative assumptions used throughout
+this project, **10 mm is the smallest bolt whose direct preload
+requirement (M3/M4/M5) is satisfiable, but it is not installation-robust
+by torque control alone** at the baseline friction-uncertainty range.
+Two independent, computed paths resolve this: **(a)** tighten friction
+control to a narrower nut-factor range (e.g. `K=[0.18,0.22]`, plausible
+with controlled lubrication/torque procedure), which restores a
+feasible robust torque window at 10 mm; or **(b)** upsize to **12 mm**,
+which is robust to torque-installation friction uncertainty even at the
+baseline `K=[0.15,0.25]` range. Direct preload measurement
+(instrumented bolts, load-sensing washers, or elongation measurement —
+none of which are modeled here) would sidestep the nut-factor
+uncertainty question entirely. This project does not select between
+these three paths — that decision requires information (real hardware
+lubrication/torque procedure specifics, mass/cost trade for 12 mm,
+installation-method feasibility) outside this reduced-order model's
+scope.
