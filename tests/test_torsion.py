@@ -1,5 +1,3 @@
-import math
-
 import pytest
 
 from payload_bolts import InterfaceLoad, circular_pattern, distribute_loads

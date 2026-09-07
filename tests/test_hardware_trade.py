@@ -13,7 +13,6 @@ from payload_bolts import (
     GEOMETRY_M12,
     BoltMaterial,
     BoltStrengthLimits,
-    ComplexityIndex,
     FrictionModel,
     InstallationArchitecture,
     InterfaceLoad,

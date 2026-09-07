@@ -4,8 +4,6 @@ Reference values are computed by hand directly in these tests, not by
 re-calling the production functions under test a second time.
 """
 
-import math
-
 import pytest
 
 from payload_bolts import (

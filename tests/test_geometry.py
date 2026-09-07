@@ -1,5 +1,3 @@
-import math
-
 import pytest
 
 from payload_bolts import BoltPattern, circular_pattern, rectangular_pattern

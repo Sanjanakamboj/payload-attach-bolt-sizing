@@ -13,7 +13,6 @@ import pytest
 
 from payload_bolts import (
     BoltMaterial,
-    BoltSection,
     FrictionModel,
     InterfaceLoad,
     JointStiffness,

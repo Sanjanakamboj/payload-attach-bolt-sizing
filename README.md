@@ -1,4 +1,146 @@
-# payload-attach-bolt-sizing (STM-08)
+# Payload Attach Bolt Sizing (STM-08)
+
+**Does a bolted payload-attach interface remain sound once you look past
+initial strength sizing — through required preload, proof-based
+installation feasibility, local joint checks, torque-installation
+robustness, and a full installation-architecture trade?** This project
+is a from-scratch, reduced-order conceptual engineering study that
+follows one representative 8-bolt interface through eight linked
+milestones to answer exactly that, ending in a genuine, non-forced
+hardware-architecture trade rather than a single "optimal" answer.
+
+*Generic, illustrative, reduced-order engineering study — not a
+certified, qualified, or procurement-ready design. See
+[RESULTS.md](RESULTS.md) for the results-first summary and
+[VERIFICATION.md](VERIFICATION.md) for the independent audit trail
+behind every number below.*
+
+## Final engineering conclusion
+
+- **8 mm** passed the original strength screen but **failed the
+  proof-based preload-installation-window screen** (scatter-adjusted
+  minimum target 32,509.1 N > proof-based maximum target 31,290.3 N).
+- **10 mm** became the smallest admissible *conceptual* bolt once
+  local-joint (bearing/edge-distance/spacing) checks were added on top
+  of strength and preload-window feasibility.
+- 10 mm was **not robust to torque-only installation control** at the
+  illustrative baseline friction (nut-factor) uncertainty range.
+- **Direct preload verification** (e.g. an instrumented/strain-gauged
+  bolt, ±5%, the only source-backed accuracy figure used) restored
+  10 mm's installation robustness — the preload window tolerates up to
+  ~20.1% measurement error, comfortably above that figure.
+- **12 mm** enabled robust torque-only control outright, but increased
+  the installed fastener-group mass by **~59.8%** (390.5 g → 623.9 g).
+- The Milestone 8 architecture trade found **neither option
+  Pareto-dominates** the other (10 mm wins mass and packaging margin;
+  12 mm wins installation tolerance, proof reserve, and complexity).
+- A **predeclared** decision rule selected the **12 mm + torque-control
+  architecture (`PREFER_B`)**, specifically because the 10 mm
+  direct-verification architecture's normalized complexity index (7.0)
+  exceeded the declared threshold (6.0) — by exactly one point.
+- **Sensitivity showed this flips**: reducing any single 10 mm
+  installation-complexity sub-score by one point changes the
+  recommendation to the 10 mm architecture.
+
+**This is a genuine architecture trade, not a universal
+recommendation.** The structural screening identifies 10 mm as the
+smallest admissible conceptual bolt; the installation-architecture
+preference for 12 mm is a separate, sensitivity-dependent conclusion
+layered on top of it — history is not rewritten by it. See
+[RESULTS.md §9](RESULTS.md#9-final-conceptual-recommendation) for the
+full statement.
+
+## Key numbers
+
+| Quantity | Value |
+|---|---|
+| Governing tensile bolt (M1) | bolt 1, 24,142.1 N |
+| Smallest strength-passing bolt (M2) | 8 mm |
+| Required preload, slip-governed (M3) | 29,258.2 N/bolt |
+| 8 mm preload-window feasibility (M4) | **infeasible** |
+| Smallest admissible conceptual bolt (M5) | **10 mm** |
+| 10 mm torque-only robustness (M6) | `NO_ROBUST_TORQUE_WINDOW` |
+| 10 mm direct-verification tolerance (M7) | epsilon_max ≈ 20.1% |
+| 12 mm direct-verification tolerance (M7) | epsilon_max ≈ 36.8% |
+| Fastener-group mass, 10 mm vs. 12 mm (M8) | 390.5 g vs. 623.9 g (+59.8%) |
+| Installation-complexity index, A vs. B (M8) | 7.0 vs. 1.0 |
+| Predeclared architecture decision (M8) | **`PREFER_B`** (12 mm + torque) |
+| Independent audit (M9) | 59/59 checks pass |
+| Test suite | 280 passing |
+
+## Architecture comparison
+
+| | A: 10 mm + direct verification | B: 12 mm + torque control |
+|---|---|---|
+| Installation-control robust? | Yes | Yes |
+| In-service proof reserve | +38.0% | +39.9% |
+| Fastener-group mass | 390.5 g | 623.9 g (+59.8%) |
+| Complexity index | 7.0 | 1.0 |
+| All 7 mandatory gates pass? | Yes | Yes |
+| Pareto-dominant? | No — neither architecture dominates | |
+
+## Verification
+
+Every headline number above is independently reproduced by
+`examples/independent_audit.py` (59 checks, 0 failures) and documented
+with its own hand-derived reference formula in
+[VERIFICATION.md](VERIFICATION.md). 280 automated tests pass; each
+milestone's own test file verifies its production code against
+independently written formulas, never against itself.
+
+## Repository structure
+
+```
+src/payload_bolts/     8 modules, one per milestone's new capability
+tests/                 280 tests, one file per module + a handful of
+                        cross-milestone hand-calculation checks
+examples/               9 runnable scripts (one per milestone, plus
+                        the Milestone 9 independent audit)
+README.md              full milestone-by-milestone derivation, source
+                        audits, and this summary
+RESULTS.md             results-first engineering summary
+VERIFICATION.md        independent audit trail / test-count table
+```
+
+## How to run
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e ".[dev]"
+pytest -q
+python examples/independent_audit.py
+```
+
+See "Install and test" at the end of each milestone section below for
+the full, cumulative list of example scripts.
+
+## Assumptions and limitations
+
+This is an illustrative, reduced-order conceptual study throughout:
+rigid interface plate, equal bolt stiffness in the base load
+distribution, illustrative material/proof/yield properties, an
+illustrative preload-installation scatter allowance, an illustrative
+nut-factor range, illustrative-or-sourced preload-verification
+accuracy figures (labeled individually), and a normalized (non-dollar)
+installation-complexity index. No fatigue, prying, thermal preload,
+embedment/relaxation, nonlinear contact, proof testing, or
+certification is modeled anywhere. See each milestone's own
+"Limitations" section below, and [RESULTS.md §10](RESULTS.md#10-critical-limitations)
+for the consolidated list.
+
+## Milestone history
+
+M1 load distribution → M2 strength sizing → M3 preload requirement →
+M4 proof-based preload window → M5 local joint screens / 10 mm
+candidate → M6 torque-control robustness → M7 direct preload
+verification → M8 installation-architecture trade → M9 final synthesis
+and independent audit (this document). Full derivation, source audits,
+and per-milestone limitations follow below.
+
+---
+
+# Milestone 1 — rigid-interface bolt-group load distribution
 
 Bolted-joint sizing for a payload-to-structure interface under representative
 launch load factors.
@@ -1734,3 +1876,107 @@ hardware decision requires information — real instrumentation product
 maturity, mass-budget sensitivity for this specific payload, and
 installation-process capability — outside this reduced-order model's
 scope.
+
+## Stage-by-stage summary
+
+| Stage | Question | Result | Engineering consequence |
+|---|---|---|---|
+| M1 | Which bolt sees the highest tension? | bolt 1, 24,142.1 N | drives strength/preload sizing |
+| M2 | Smallest strength-passing candidate? | 8 mm | strength alone is insufficient |
+| M3 | Required preload? | 29,258.2 N/bolt | slip governs, not separation |
+| M4 | Is the 8 mm preload window feasible? | **No** | proof-based window conflict, invisible from strength alone |
+| M5 | Smallest candidate passing every screen? | **10 mm** | conceptual structural selection |
+| M6 | Is 10 mm torque-only robust? | **No** | friction (nut-factor) uncertainty matters |
+| M7 | Is 10 mm direct-verification robust? | **Yes** | 10 mm remains viable with the right installation method |
+| M8 | Which installation architecture is preferred? | **12 mm + torque, `PREFER_B`** | mass (+59.8%) vs. complexity (7.0 vs. 1.0) trade, decided by 1 point |
+| M9 | Does everything reproduce independently? | **Yes**, 59/59 checks | audit trail closes the project |
+
+This table intentionally does not oversimplify: M8's result is a
+**narrow, sensitivity-dependent preference**, not a decisive win for
+either architecture — see [RESULTS.md §9](RESULTS.md#9-final-conceptual-recommendation).
+
+---
+
+# Milestone 9 — final portfolio synthesis, independent audit, and publication polish
+
+**Milestone 9 converts the completed Milestone 1–8 engineering work
+into a concise, externally reviewable package without changing any
+underlying physics, criteria, candidate selections, numerical results,
+or historical milestone conclusions. This milestone is synthesis and
+verification only — no new engineering model, sizing criterion, bolt
+candidate, material property, or installation assumption is
+introduced.**
+
+## What this milestone added
+
+- **[RESULTS.md](RESULTS.md)** — a results-first engineering summary,
+  organized around findings rather than chronological implementation.
+- **[VERIFICATION.md](VERIFICATION.md)** — a technical audit document
+  with a subsystem-by-subsystem table (reference quantity, independent
+  route, production value, independent value, residual, tolerance,
+  status), the full test-count breakdown, and a repository-hygiene and
+  source-citation audit.
+- **`examples/independent_audit.py`** — a script that independently
+  RECOMPUTES 59 key cross-milestone quantities from raw equations
+  written directly in the script (never by calling a production
+  function and comparing it to itself), covering M1 equilibrium
+  through M8's architecture trade. Result: **59/59 checks pass**,
+  maximum absolute residual 4.0×10⁻² (a rounding artifact of a
+  1-decimal reference constant — see VERIFICATION.md for the exact
+  breakdown).
+- **This README's reframed top section** (above) — a ~60-second
+  summary for a reader encountering the project for the first time,
+  without deleting or altering any historical milestone section below.
+- A source/citation wording audit (no corrections were found
+  necessary — see VERIFICATION.md §8) and a repository-hygiene/
+  clean-environment-reproducibility check (see the Milestone 9 session
+  report).
+
+## What this milestone explicitly did NOT do
+
+- No new physics, sizing criterion, bolt candidate, material property,
+  or installation-method assumption.
+- No change to any M1–M8 numerical result, test, or example script.
+- No rewriting of the historical Milestone 5 bolt selection (10 mm
+  remains the smallest admissible *structural* conceptual candidate;
+  the Milestone 8 architecture preference for 12 mm is a distinct,
+  later, sensitivity-dependent conclusion layered on top of it, not a
+  substitute for it).
+- No new figures (this repository has intentionally remained
+  text/table-oriented since Milestone 5; no plotting dependency was
+  introduced here either).
+
+## Verification
+
+280 tests pass (276 inherited + 4 new, covering this milestone's own
+small reusable audit-script helper). All nine example scripts —
+including the new `independent_audit.py` — were re-run this session
+and reproduce every inherited headline value exactly (see
+VERIFICATION.md §2–3 and the Milestone 9 session report for the full
+before/after comparison).
+
+## Limitations
+
+This milestone inherits every limitation from Milestones 1–8 unchanged
+(see each milestone's own section above, and
+[RESULTS.md §10](RESULTS.md#10-critical-limitations) for the
+consolidated list). It adds no new limitations of its own beyond the
+scope boundary stated above (synthesis and verification only).
+
+## Install and test
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e ".[dev]"
+pytest -q
+python examples/payload_attach_sanity.py
+python examples/bolt_strength_sizing.py
+python examples/preloaded_joint_screening.py
+python examples/preload_feasibility_screening.py
+python examples/bolt_candidate_trade.py
+python examples/torque_preload_screening.py
+python examples/preload_verification_trade.py
+python examples/hardware_architecture_trade.py
+python examples/independent_audit.py
+```
