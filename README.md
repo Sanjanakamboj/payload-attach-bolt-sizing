@@ -810,6 +810,213 @@ Milestone 1–3 limitations all still apply. In addition, for Milestone 4:
   joint location.
 - No certification claim of any kind.
 
+---
+
+# Milestone 5 — bolt-size trade, local joint failure modes, and preliminary hardware selection
+
+**Milestone 5 resolves the engineering decision exposed by Milestone 4
+with a transparent, predeclared conceptual trade. It does NOT model
+fatigue, prying, nonlinear plate flexibility, detailed flange bending,
+detailed fastener torque, lubrication/nut-factor effects, thermal
+preload, embedment/relaxation, detailed contact FEA, fracture
+mechanics, net-section rupture, thread stripping (explicitly not
+modeled -- see below), proof testing, or certification/qualification.**
+
+## Why Milestone 5 was required
+
+Milestone 2 found 8 mm to be the smallest bolt passing its tensile/
+shear/interaction strength screen. Milestone 4 then showed that same
+8 mm bolt has **no feasible installation-preload window** under
+illustrative proof-strength and scatter assumptions (target_min
+32,509.1 N > target_max 31,290.3 N), and that 10 mm / 12 mm recover
+feasibility. Milestone 5 asks the resulting question directly: does 8 mm
+remain a defensible conceptual choice once preload feasibility **and**
+local bearing/edge-distance/spacing screening are added — or does the
+trade support upsizing? The answer is computed, not assumed.
+
+## Candidate trade architecture
+
+For each candidate diameter, Milestone 5 reuses **exactly** (never
+recomputes): Milestone 2's `BoltGroupStrengthResult` (tensile stress
+area, strength pass/fail, governing mode); Milestone 3's
+`RequiredPreloadResult`; and Milestone 4's `PreloadFeasibilityResult`
+(installation window, selected-preload classification, in-service bolt
+force). New in Milestone 5: bearing, edge-distance, and spacing local-
+joint screens (below), and thread stripping is explicitly flagged as
+not modeled.
+
+## Local bearing screen
+
+`sigma_bearing = F_bearing / (d_hole * t)`, where `F_bearing` is each
+bolt's Milestone 1 **in-plane shear resultant** (`shear_resultant`,
+including both direct and Mz-torsional shear) — **never** the axial/
+tensile load, which is physically the wrong load path for plate/hole
+bearing. `d_hole` is idealized equal to the candidate nominal diameter
+(no clearance modeled, consistent with Milestone 2's idealized shank-
+area convention). `MS_bearing = allowable/demand - 1`.
+
+Source: mechanicalc.com's "Lug Analysis" (Air Force Method) confirms
+bearing area `A_br = D_p * t`, i.e. exactly this convention.
+
+## Edge-distance screen (geometry screen only)
+
+Each bolt's edge distance is `e_i = R_plate - |bolt_i - plate_center|`
+for an illustrative circular plate boundary concentric with the
+Milestone 1 bolt-circle center (`R_plate` = bolt-circle radius + an
+illustrative 50 mm margin) — a simplification valid only for this
+project's circular bolt pattern, not a general polygon-boundary model.
+Reported as the dimensionless ratio `e/d` against `(e/d)_min = 1.5`
+(source: mechanicalc.com's Air-Force-Method bearing/shear-out regime
+transition at `e/D >= 1.5`). This is a **geometry screen only**, not a
+tear-out/net-section strength calculation.
+
+## Spacing screen (geometry screen only)
+
+Every pairwise bolt center-to-center spacing `s/d` is checked against
+`(s/d)_min = 3.0` (source: a web-search summary of AISC 360-22, a
+general structural-steel bolted-connection standard — **not**
+aerospace-specific, used only because no aerospace-specific spacing
+source could be independently read; AISC's cited minimum is 2.67d, with
+3d preferred). Also a **geometry screen only**.
+
+## Thread-strip method/status
+
+**Explicitly NOT modeled.** Source-verified thread-stripping shear-area
+formulas (Unified/inch and ISO-metric/VDI-2230 forms) require detailed
+thread-geometry parameters — pitch diameters, thread class of fit,
+effective engagement fraction — that are not established anywhere else
+in this project and cannot be transparently reproduced from a search
+summary with confidence. Per this milestone's explicit guidance, a
+transparent omission (`ThreadCheckStatus.THREAD_CHECK_NOT_MODELED`) is
+used instead of a fabricated formula; this check is **never** a gating
+criterion in the selection rule below.
+
+## Predeclared selection rule (declared before evaluating candidates)
+
+```
+A candidate is ADMISSIBLE only if ALL of:
+  1. Milestone 2 strength passes;
+  2. the Milestone 4 installation-preload window is feasible AND the
+     Milestone 3 selected preload classifies as FEASIBLE against it;
+  3. bearing margin of safety >= 0;
+  4. the edge-distance screen passes;
+  5. the spacing screen passes.
+(Thread stripping is NOT modeled and is never gating.)
+
+Among ADMISSIBLE candidates, SELECT the smallest nominal diameter.
+```
+
+This is a conceptual minimum-size rule, not a claim of global
+optimality. It was fixed in code before the candidate table below was
+generated and was not adjusted afterward.
+
+## Candidate table (baseline: same M1–M4 illustrative case)
+
+| d (mm) | A_t (mm²) | M2 pass | M4 status | M4 window width (N) | bearing MS | e/d | s/d | **admissible** |
+|---|---|---|---|---|---|---|---|---|
+| 6 | 28.27 | **FAIL** | NO_INSTALLATION_WINDOW | −14,908 | +2.36 | 8.33 | 63.78 | **No** |
+| 8 | 50.27 | PASS | **NO_INSTALLATION_WINDOW** | −1,219 | +3.48 | 6.25 | 47.84 | **No** |
+| 10 | 78.54 | PASS | FEASIBLE | +16,382 | +4.59 | 5.00 | 38.27 | **Yes** |
+| 12 | 113.10 | PASS | FEASIBLE | +37,894 | +5.71 | 4.17 | 31.89 | Yes |
+
+## Result
+
+**8 mm remains rejected — solely on Milestone 4 preload-feasibility
+grounds, not bearing or geometry (both of which pass 8 mm comfortably).
+10 mm becomes the smallest admissible conceptual candidate**, with
+window width +16,382 N, proof reserve +63.2%, bearing MS +4.59, edge
+ratio 5.00 (vs. criterion 1.5), spacing ratio 38.27 (vs. criterion
+3.0). 6 mm fails both M2 strength and M4 feasibility. This is a genuine
+computed result, not assumed in advance.
+
+*"The selected bolt is the smallest candidate passing this reduced-order
+screening set; it is not a flight-qualified or globally optimized
+fastener selection." "Local bearing, spacing, and thread checks are
+conceptual screening models and do not replace detailed joint
+analysis."*
+
+## Sensitivity
+
+- **Plate thickness** (0.75x/1.0x/1.25x) and **bearing allowable**
+  (−20%/nominal/+20%): bearing margin at 8 mm stays strongly positive
+  (+2.36 to +4.59) across the full range — bearing never becomes
+  governing and never changes the selected candidate.
+- **Edge-distance criterion** (1.5/2.0/2.5): 8 mm's actual e/d (6.25)
+  clears all three tested criteria comfortably.
+- **Preload scatter `delta_F`** (5%/10%/20%): reveals a subtlety —
+  loosening `delta_F` to 5% makes the M4 *window itself* feasible, but
+  the *fixed* Milestone-3-selected preload (pinned to the
+  `delta_F=0.10`-derived requirement × factor 1.20) is then **above**
+  the window (`SELECTED_PRELOAD_TOO_HIGH`), so 8 mm still fails —
+  a feasible window alone does not guarantee an admissible selection
+  unless the selection is re-derived against it.
+- **Friction `mu`** (0.10–0.40, carried forward from Milestone 3
+  unchanged): here both the requirement *and* the selection are
+  re-derived together, and 8 mm's admissibility flips to `True` at
+  `mu >= 0.30`.
+- **Thread engagement length**: not applicable (thread stripping not
+  modeled).
+
+None of these sensitivities change the *governing reason* 8 mm is
+rejected in the baseline case: Milestone 4 preload feasibility, not
+bearing or geometry.
+
+## Verification summary (Milestone 5)
+
+- Bearing stress/margin hand calculations; bearing stress verified to
+  decrease monotonically with both diameter and plate thickness.
+- Edge distance and pairwise spacing independently reconstructed from
+  the actual Milestone 1 bolt coordinates (not a formula assumed to
+  match); minimum pairwise spacing on the regular 8-bolt circle
+  independently cross-checked against `2*R*sin(pi/n)`.
+- Exact geometric/bearing boundary behavior (margin/ratio at the
+  criterion) verified to pass; just-below-boundary cases verified to
+  fail.
+- Milestone 2 tensile-stress-area, pass/fail, and governing-mode
+  results, Milestone 3 required-preload values, and Milestone 4
+  installation-window results for 8/10/12 mm all verified preserved
+  exactly (unchanged from their own modules).
+- Candidate admissibility logic and smallest-admissible selection
+  verified deterministic and independent of input candidate ordering;
+  a selection is verified to never occur if Milestone 2 strength or the
+  Milestone 4 window fails; a genuine "no feasible candidate" case is
+  verified reported honestly (not silently resolved).
+- Thread stripping verified to never appear in any candidate's
+  admissibility-failure reasons.
+- Pairwise spacing verified robust to bolt input ordering.
+- Invalid plate/geometry inputs verified rejected.
+- **All 150 Milestone 1–4 tests remain unchanged and passing; 32 new
+  Milestone 5 tests added (182 total).**
+
+## Limitations
+
+Milestone 1–4 limitations all still apply. In addition, for Milestone 5:
+
+- No fatigue, prying, or nonlinear plate flexibility.
+- No detailed flange bending.
+- No detailed bearing/tear-out interaction beyond the simple bearing-
+  stress screen (no combined bearing + shear-out interaction curve).
+- No net-section rupture check.
+- No nonlinear contact FEA, no fracture mechanics.
+- No thermal preload, no embedment/relaxation.
+- No torque-tension relationship, nut factor, or lubrication.
+- Thread stripping is explicitly NOT modeled (see above) — not
+  approximated, not assumed adequate.
+- No proof testing.
+- Edge-distance/spacing checks are geometric screens only, not
+  detailed tear-out or net-section strength calculations.
+- The illustrative circular plate boundary is a simplification specific
+  to this project's circular bolt pattern.
+- The spacing criterion is borrowed from a general (non-aerospace)
+  structural-steel connection standard.
+- No certification/qualification claim of any kind.
+- No figures were generated this milestone: this repository has used a
+  text-only reduced-order report format through Milestones 1–4 and does
+  not currently depend on a plotting library; adding one purely for
+  Milestone 5 was judged to add more architectural inconsistency than
+  portfolio value, so this is documented as an explicit, deliberate
+  scope decision rather than an oversight.
+
 ## Install and test
 
 ```bash
@@ -821,4 +1028,5 @@ python examples/payload_attach_sanity.py
 python examples/bolt_strength_sizing.py
 python examples/preloaded_joint_screening.py
 python examples/preload_feasibility_screening.py
+python examples/bolt_candidate_trade.py
 ```

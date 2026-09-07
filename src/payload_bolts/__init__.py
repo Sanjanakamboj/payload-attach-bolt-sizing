@@ -31,14 +31,30 @@ proof/yield load using the Milestone 3 closed-joint load-sharing
 formula. Not a torque specification, qualification procedure,
 certification analysis, or detailed threaded-joint design.
 
-Explicitly out of scope through Milestone 4 (deferred to later
+Milestone 5 scope: a transparent conceptual bolt-size trade on top of
+the unchanged Milestone 1-4 results -- for each candidate diameter,
+Milestone 2 strength and Milestone 3/4 preload-window feasibility are
+reused exactly and combined with new local-joint screens: bearing
+stress at the plate/hole interface (using the Milestone 1 in-plane
+shear resultant, never the axial/tensile load), an edge-distance
+geometry screen, and a bolt-spacing geometry screen. Thread stripping
+is explicitly NOT modeled (no source-verified formula could be
+established from the thread-geometry information available to this
+project) rather than approximated. A predeclared, deterministic
+admissibility rule and smallest-admissible-diameter selection rule
+resolve whether the Milestone 2 minimum-strength 8 mm bolt remains a
+defensible conceptual choice once preload feasibility and local-joint
+screening are added.
+
+Explicitly out of scope through Milestone 5 (deferred to later
 milestones): torque-to-preload conversion / nut factor / torque
 coefficient / lubrication / thread friction / under-head friction,
 preload relaxation/embedment, thermal preload change, fatigue, prying,
-bearing, tear-out, pull-through, thread stripping, nonlinear joint
-opening beyond the linear closed-joint model, proof testing,
-detailed fastener standards/database lookup, structural optimization,
-and final portfolio figures.
+nonlinear plate flexibility, detailed flange bending, detailed
+bearing/tear-out interaction, net-section rupture, nonlinear contact
+FEA, fracture mechanics, thread stripping (explicitly not modeled, see
+above), proof testing, detailed fastener standards/database lookup,
+structural optimization, and certification/qualification.
 """
 
 from .geometry import BoltPattern, circular_pattern, rectangular_pattern
@@ -84,6 +100,27 @@ from .preload_limits import (
     classify_selected_preload,
     assess_preload_feasibility,
 )
+from .joint_local_checks import (
+    PlateMaterial,
+    JointGeometry,
+    CheckStatus,
+    PerBoltBearing,
+    BearingCheckResult,
+    PerBoltEdgeDistance,
+    EdgeDistanceCheckResult,
+    PairSpacing,
+    SpacingCheckResult,
+    ThreadCheckStatus,
+    ThreadStripCheckResult,
+    BoltCandidateTradeResult,
+    BoltSelectionResult,
+    assess_bearing,
+    assess_edge_distance,
+    assess_spacing,
+    thread_strip_not_modeled,
+    evaluate_candidate_trade,
+    select_bolt_candidate,
+)
 
 __all__ = [
     "BoltPattern",
@@ -124,6 +161,25 @@ __all__ = [
     "installation_preload_window",
     "classify_selected_preload",
     "assess_preload_feasibility",
+    "PlateMaterial",
+    "JointGeometry",
+    "CheckStatus",
+    "PerBoltBearing",
+    "BearingCheckResult",
+    "PerBoltEdgeDistance",
+    "EdgeDistanceCheckResult",
+    "PairSpacing",
+    "SpacingCheckResult",
+    "ThreadCheckStatus",
+    "ThreadStripCheckResult",
+    "BoltCandidateTradeResult",
+    "BoltSelectionResult",
+    "assess_bearing",
+    "assess_edge_distance",
+    "assess_spacing",
+    "thread_strip_not_modeled",
+    "evaluate_candidate_trade",
+    "select_bolt_candidate",
 ]
 
 __version__ = "0.1.0"
