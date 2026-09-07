@@ -347,6 +347,238 @@ the bolt-group centroid) all still apply. In addition, for Milestone 2:
   fastener standard.
 - No certification claim of any kind.
 
+---
+
+# Milestone 3 — preloaded-joint closure and friction-slip screening
+
+**Milestone 3 adds a first-order preloaded-joint closure and
+friction-slip screen. It does not yet size torque or verify preload
+against bolt proof/yield strength.**
+
+Milestone 3 consumes the Milestone 1 per-bolt loads (`axial_total`,
+`shear_resultant`) unchanged and adds a preload/joint-behavior layer on
+top. **Milestone 1 bolt-group mechanics and Milestone 2 bolt-strength
+calculations (including the interaction criterion and its
+governing-mode tie-break) are completely unchanged** — see
+`src/payload_bolts/preload.py`.
+
+The engineering question: for the selected payload attach bolt pattern
+and bolt candidate, how much preload is required to keep the joint
+closed and prevent interface slip under the representative launch
+loads?
+
+## Preload model
+
+`PreloadState(preload_per_bolt, label="")` — an explicit engineering
+input in newtons, finite and > 0. Milestone 3 does **not** derive
+preload from an installation torque; torque-to-preload conversion is
+deferred.
+
+## Joint stiffness / load fraction C
+
+`JointStiffness(bolt_stiffness, member_stiffness)` — preliminary
+equivalent linear stiffnesses in N/m, both finite and > 0. Defines the
+classical load fraction:
+
+```
+C = k_b / (k_b + k_m)          (0 < C < 1)
+```
+
+`C` is the fraction of an external separating tensile load carried as
+*additional* bolt load before the joint separates; the remaining
+fraction `(1 - C)` is lost from the clamped-member compression.
+
+## External axial-load policy
+
+Only the separating (tensile) portion of Milestone 1's signed
+`axial_total` creates separation/slip demand:
+
+```
+T_sep,i = max(axial_total_i, 0)
+```
+
+A bolt with `axial_total_i <= 0` (compression side) contributes no
+separation demand; the signed load is retained unchanged for reporting.
+
+## Bolt-load increment and clamp-force reduction
+
+```
+Delta_F_b,i = C * T_sep,i                     (additional bolt load)
+F_b,total,i = F_preload + Delta_F_b,i         (total bolt tension)
+
+Delta_F_m,i = (1 - C) * T_sep,i               (clamp-force reduction)
+F_clamp_remaining,i = F_preload - Delta_F_m,i (unclipped, signed)
+```
+
+Force balance: `Delta_F_b,i + Delta_F_m,i == T_sep,i` exactly.
+
+## Separation condition and margin
+
+The joint remains closed at a bolt location if
+`F_clamp_remaining,i >= 0`. Normalized margin:
+
+```
+MS_sep,i = F_preload / ((1-C) * T_sep,i) - 1     (T_sep,i > 0)
+```
+
+**Zero-demand convention**: at `T_sep,i <= 0`, `MS_sep,i = None`
+(not applicable) and the location trivially passes — never a division
+by zero.
+
+## Local friction / interface-slip screening
+
+`FrictionModel(friction_coefficient, number_of_faying_surfaces=1)` — an
+illustrative interface friction coefficient (mu > 0) and an integer
+count of faying surfaces (>= 1).
+
+Effective clamp force available for friction at each location clips at
+zero (a separated location contributes no friction capacity, but never
+a *negative* one):
+
+```
+F_clamp_effective,i = max(F_clamp_remaining,i, 0)
+V_fric_cap,i = mu * n_interfaces * F_clamp_effective,i
+```
+
+The primary slip screen is **local, per bolt**, using each bolt's own
+Milestone 1 shear demand `V_i = shear_resultant_i` — this already
+includes both direct shear and Mz torsional shear, so Mz is not
+ignored. Margin:
+
+```
+MS_slip,i = V_fric_cap,i / V_i - 1      (V_i > 0)
+```
+
+**Zero-demand convention**: `V_i = 0` → `MS_slip,i = None`, passes. If
+`V_i > 0` but `F_clamp_effective,i = 0` (fully separated location with
+shear demand), `MS_slip,i` is set to the explicit finite value **-1**
+(FAIL) — never NaN or infinite.
+
+This local check is a **preliminary load-sharing approximation**: it
+assumes each bolt station's surrounding clamped area supplies friction
+in proportion to that station's own remaining clamp force. It is **not**
+a detailed contact-pressure/friction analysis.
+
+## Governing logic (deterministic)
+
+- **Governing separation bolt**: smallest applicable `MS_sep,i`
+  (`None` treated as no constraint); ties → lowest bolt index.
+- **Governing slip bolt**: smallest applicable `MS_slip,i`; ties →
+  lowest bolt index.
+- Overall joint-screen `passed` is **PASS only if there is no local
+  separation and no local slip anywhere** — Milestone 2 bolt-strength
+  pass/fail is a separate, independently reported result and is never
+  folded into this flag.
+
+## Required preload (analytical, not a torque spec)
+
+```
+F_preload_required_sep  = max_i[(1-C) * T_sep,i]
+F_preload_required_slip = max_i[(1-C) * T_sep,i + V_i / (mu * n_interfaces)]
+F_preload_required      = max(F_preload_required_sep, F_preload_required_slip)
+```
+
+The slip expression already contains the separation term for the same
+bolt, so `slip_required >= separation_required` always; a numerical tie
+between the two is reported as governed by "slip" (the more inclusive
+check). `apply_preload_factor(required_value, preload_factor >= 1.0)`
+is kept separate from the requirement itself, so an explicit design
+reserve is never hidden inside the analytical result.
+
+## Representative result
+
+Using the Milestone 1 8-bolt / R=0.5 m sanity case, illustrative
+stiffnesses `k_b = 1e8 N/m`, `k_m = 4e8 N/m` (`C = 0.2`), and an
+illustrative friction coefficient `mu = 0.2`:
+
+- Required preload: separation 19,313.7 N/bolt (bolt 1), slip
+  29,258.2 N/bolt (bolt 0) → **overall required ≈ 29,258 N/bolt**,
+  governed by **slip at bolt 0**.
+- Selected preload (illustrative `preload_factor = 1.2`):
+  **≈ 35,110 N/bolt** (+20% reserve above the requirement).
+- At the selected preload: all 8 locations closed, no slip anywhere;
+  governing separation bolt 1 (MS ≈ +0.82), governing slip bolt 5
+  (MS ≈ +0.23). **Overall joint screen: PASS.**
+
+Run it:
+
+```bash
+python examples/preloaded_joint_screening.py
+```
+
+## Sensitivity studies
+
+- **Preload factor** (`F_preload / F_required` = 0.5 … 2.0): margins
+  improve monotonically with preload; the joint screen transitions from
+  FAIL to PASS exactly at factor 1.0, with the governing slip margin at
+  bolt 0 landing at 0.000 there — confirming the required-preload
+  equation is tight, not conservative by construction.
+- **Friction coefficient** (`mu` = 0.10 … 0.40, stiffness/loads fixed):
+  required preload against slip decreases monotonically as `mu`
+  increases (57.2 kN/bolt at mu=0.10 down to 21.7 kN/bolt at mu=0.40);
+  the governing bolt itself can shift as the balance between
+  shear-heavy and tension-heavy bolts changes.
+- **Load fraction C** (0.10 … 0.40, via member stiffness, mu/loads
+  fixed): required preload against separation decreases monotonically
+  as `C` increases. **Trade interpretation**: a lower `C` transfers
+  less external load into the bolt but loses more clamp force from the
+  members (greater separation/slip sensitivity for a given preload); a
+  higher `C` retains more clamp force but increases the bolt's tension
+  increment — this is a trade, not a universal preference for high
+  `C`.
+
+## Verification summary (Milestone 3)
+
+- Hand-derived force balance (`additional bolt load + clamp-force
+  reduction == separating demand`), bolt-load increment, and clamp
+  reduction formulas verified exactly.
+- Exact separation and slip boundaries (`margin = 0`) verified to pass;
+  slightly above/below verified to pass/fail.
+- Zero separating demand, zero shear demand, and a fully-separated
+  location with nonzero shear (explicit `MS_slip = -1`, no NaN/inf) all
+  verified.
+- Compression-side bolts verified to retain full preload (no clamp-force
+  reduction) while their signed load is preserved for reporting.
+- Required-preload equations (separation, slip, overall) verified by
+  hand calculation and shown to exactly satisfy every bolt at the
+  boundary (one bolt at margin ≈ 0), with a preload slightly below
+  failing and slightly above passing.
+- Monotonic sensitivity verified: required slip preload decreases with
+  `mu`; required separation preload decreases with `C`; margins improve
+  monotonically with preload factor.
+- Deterministic governing-bolt tie-break (lowest index) verified for
+  both separation and slip; deterministic repeated assessment verified.
+- Milestone 1 `BoltGroupResult` and Milestone 2 strength results
+  verified unmutated/unaffected by this module.
+- **All 79 Milestone 1–2 tests remain unchanged and passing.**
+
+## Limitations
+
+Milestone 1–2 limitations (rigid payload/interface plate, equal bolt
+stiffness in load distribution, point fasteners, moments about the
+bolt-group centroid, idealized candidate areas, illustrative quadratic
+interaction, no bolt strength/preload-interaction check, etc.) all
+still apply. In addition, for Milestone 3:
+
+- Equivalent linear bolt/member stiffness is used for preload load
+  sharing (not derived from detailed flange/washer/thread flexibility).
+- One scalar load fraction `C` applies to the whole joint (no per-bolt
+  or spatially varying stiffness).
+- Preload is prescribed directly; there is no torque-to-preload
+  relation.
+- No preload scatter (installation variability) is modeled.
+- No embedment preload loss.
+- No thermal preload effects.
+- No nonlinear contact / detailed pressure distribution.
+- No local flange flexibility.
+- Local friction capacity is assumed proportional to each bolt's own
+  remaining clamp force — a simplified load-sharing approximation, not
+  a detailed contact-pressure/friction analysis.
+- No bolt proof/yield preload check.
+- No bearing/tear-out, no prying, no pull-through, no thread stripping.
+- No fatigue.
+- No certification claim of any kind.
+
 ## Install and test
 
 ```bash
@@ -356,4 +588,5 @@ pip install -e ".[dev]"
 pytest -q
 python examples/payload_attach_sanity.py
 python examples/bolt_strength_sizing.py
+python examples/preloaded_joint_screening.py
 ```

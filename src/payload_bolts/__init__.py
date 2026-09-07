@@ -11,11 +11,19 @@ representation, tensile/shear stress, separate tensile/shear margins,
 an illustrative quadratic tension-shear interaction check, deterministic
 governing-bolt/mode identification, and candidate bolt-size comparison.
 
-Explicitly out of scope through Milestone 2 (deferred to later
-milestones): preload/torque, friction load sharing, joint slip/
-separation, bearing, tear-out, pull-through, prying, thread stripping,
-fatigue, detailed fastener standards/database lookup, structural
-optimization, and final portfolio figures.
+Milestone 3 scope: a first-order preloaded-joint closure and
+friction-slip screen on top of the unchanged Milestone 1/2 results --
+explicit bolt preload, a bolt/member load-fraction C, joint-separation
+screening, remaining clamp force, local friction-capacity/slip
+screening, deterministic governing bolt/constraint identification, and
+analytical required-preload equations (not a torque specification).
+
+Explicitly out of scope through Milestone 3 (deferred to later
+milestones): torque-to-preload conversion, detailed thread mechanics,
+bolt proof/yield preload limits, preload scatter, embedment/thermal
+preload loss, bearing, tear-out, pull-through, prying, thread
+stripping, fatigue, detailed fastener standards/database lookup,
+structural optimization, and final portfolio figures.
 """
 
 from .geometry import BoltPattern, circular_pattern, rectangular_pattern
@@ -37,6 +45,17 @@ from .strength import (
     evaluate_candidates,
     select_smallest_passing_bolt,
 )
+from .preload import (
+    PreloadState,
+    JointStiffness,
+    FrictionModel,
+    BoltPreloadResult,
+    BoltPreloadGroupResult,
+    RequiredPreloadResult,
+    assess_preloaded_joint,
+    required_preload,
+    apply_preload_factor,
+)
 
 __all__ = [
     "BoltPattern",
@@ -57,6 +76,15 @@ __all__ = [
     "assess_bolt_group_strength",
     "evaluate_candidates",
     "select_smallest_passing_bolt",
+    "PreloadState",
+    "JointStiffness",
+    "FrictionModel",
+    "BoltPreloadResult",
+    "BoltPreloadGroupResult",
+    "RequiredPreloadResult",
+    "assess_preloaded_joint",
+    "required_preload",
+    "apply_preload_factor",
 ]
 
 __version__ = "0.1.0"
