@@ -1451,51 +1451,286 @@ python examples/torque_preload_screening.py
 python examples/preload_verification_trade.py
 ```
 
+## Install and test
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e ".[dev]"
+pytest -q
+python examples/payload_attach_sanity.py
+python examples/bolt_strength_sizing.py
+python examples/preloaded_joint_screening.py
+python examples/preload_feasibility_screening.py
+python examples/bolt_candidate_trade.py
+python examples/torque_preload_screening.py
+python examples/preload_verification_trade.py
+python examples/hardware_architecture_trade.py
+```
+
 ---
 
-# Final project synthesis (Milestones 1–7)
+# Milestone 8 — hardware trade closure: 10 mm + direct preload verification vs. 12 mm conventional installation
 
-- **M1 — bolt loads**: rigid, equal-stiffness bolt-group model; 8-bolt
-  circular pattern; max tensile bolt 1 at 24,142.1 N; equilibrium
+**Milestone 8 resolves the remaining conceptual hardware decision by
+comparing two full installation ARCHITECTURES — not just bolt sizes —
+across mass, installation-control robustness, in-service proof
+reserve, local-joint packaging margin, and a normalized (non-dollar)
+installation-complexity index. This remains a conceptual engineering
+trade study — NOT procurement analysis, flight-hardware selection,
+supplier quotation, manufacturing planning, certification, life-cycle
+cost modeling, or qualification planning.**
+
+## Why the final architecture trade is needed
+
+Milestone 5 selected 10 mm as the smallest conceptual bolt passing
+strength + preload-window + local-joint screening. Milestone 6 found
+10 mm has no robust torque-only window at the baseline nut-factor
+range; Milestone 7 found it DOES have a feasible window under direct
+preload-verification methods. Neither milestone weighed the *system-level*
+cost of that choice against simply upsizing to 12 mm, which is
+torque-robust outright. Milestone 8 closes that gap.
+
+## Architecture definitions
+
+- **Architecture A — `TEN_MM_DIRECT_VERIFICATION`**: 10 mm bolt,
+  installed/verified via `INSTRUMENTED_BOLT` (the only method with a
+  primary-sourced accuracy figure in Milestone 7, ±5%).
+- **Architecture B — `TWELVE_MM_TORQUE_CONTROL`**: 12 mm bolt,
+  installed via conventional torque control at the Milestone 6 baseline
+  `K=[0.15, 0.25]`.
+- Two comparison-only architectures (`TEN_MM_TORQUE_ONLY`,
+  `TWELVE_MM_DIRECT_VERIFICATION`) are also implemented and tested, to
+  confirm the mandatory-gate logic correctly rejects/admits them
+  consistently with Milestones 6/7's own findings.
+
+## Mass model (see module docstring for full source audit)
+
+A reduced-order, sourced-geometry mass proxy for one installed
+fastener set (bolt + nut + one flat washer):
+
+```
+V_shank  = pi/4 * d^2 * L_bolt
+V_head   = A_hex(W_head) * H_head
+V_nut    = A_hex(W_nut) * t_nut  -  pi/4 * d^2 * t_nut
+V_washer = pi/4 * (OD_washer^2 - d^2) * t_washer
+m = rho * (V_shank + V_head + V_nut + V_washer)
+```
+
+Sourced from **mechanicalc.com's "Fastener Size Tables"** (read
+directly) for exact ISO metric M10/M12 hex head/nut/washer dimensions;
+steel density 7,850 kg/m³ (standard engineering value, kept strictly
+separate from the illustrative proof/yield strength properties);
+`L_bolt = grip_length + 1.0×d` (grip = two clamped Milestone 5 plate
+thicknesses = 16 mm, same rule for both diameters).
+
+## Complexity proxy (NOT a dollar cost)
+
+A normalized 0–3-scale, weighted sub-score index, declared **before**
+any architecture was evaluated:
+
+```
+score = w_hw·hardware + w_meas·measurement + w_cal·calibration + w_proc·process   (all weights = 1.0)
+```
+
+Architecture A: hardware=2, measurement=2, calibration=2, process=1 →
+**7.0**. Architecture B: hardware=0, measurement=0, calibration=1
+(torque wrenches still need periodic calibration — B is never claimed
+to need zero process control), process=0 → **1.0**.
+
+## Mandatory gates
+
+Both architectures must pass all seven: M2 strength, M4 preload
+window, M5 bearing, M5 edge distance, M5 spacing, installation-control
+robustness (direct-verification `FEASIBLE` for A / torque `FEASIBLE`
+for B), and in-service proof/yield screening. **Both A and B pass all
+seven** at the illustrative baseline.
+
+## Candidate table
+
+| | A (10 mm direct) | B (12 mm torque) |
+|---|---|---|
+| Control robust? | True | True |
+| Tolerance ratio | 1.5039 | 1.6667 |
+| In-service proof reserve | +38.0% | +39.9% |
+| Bearing MS | +4.59 | +5.71 |
+| e/d | 5.00 | 4.17 |
+| s/d | 38.27 | 31.89 |
+| Per-fastener mass | 48.82 g | 77.99 g |
+| Total group mass | 390.5 g | 623.9 g |
+| Mass delta vs. A | — | +233.4 g (+59.8%) |
+| Complexity index | **7.0** | **1.0** |
+| Mandatory gates pass? | True | True |
+
+## Pareto result — a genuine trade
+
+**Neither architecture dominates.** A wins mass and packaging margin
+(e/d, s/d); B wins tolerance ratio, proof reserve, and complexity. This
+is reported honestly as a nondominated trade, not collapsed into a
+false "winner."
+
+## Predeclared decision rule and conceptual recommendation
+
+Declared before computing the table: prefer A only if (1) both pass
+all mandatory gates; (2) A's mass is lower; (3) A's tolerance reserve
+(`epsilon_max − epsilon_used`) is ≥ 5 percentage points; (4) A's
+complexity index is ≤ 6.0. Otherwise prefer B.
+
+**Result: `PREFER_B`.** A satisfies (1) and (2) and (3) (reserve
+15.1pp ≥ 5pp), but fails (4) — its complexity index (7.0) exceeds the
+declared threshold (6.0). **This margin is narrow, not decisive**: the
+sensitivity below shows reducing *any single* complexity sub-score by
+one point (e.g. a mature, pre-qualified instrumented-bolt product line
+needing less calibration overhead) flips the recommendation to
+`PREFER_A`.
+
+## Sensitivity
+
+- **Grip length** (0.75×/1.0×/1.25×): mass-delta percentage stays in a
+  narrow 59.0–60.6% band — the architecture ranking by mass never
+  changes.
+- **Material density** (7000/7850/8500 kg/m³): both masses scale
+  exactly linearly with density; the ranking never changes.
+- **Complexity sub-score variation (one factor at a time)**: reducing
+  *any single* A sub-score (hardware, measurement, calibration, or
+  process) by 1 point drops the total to 6.0 and **flips the
+  recommendation to `PREFER_A`** — a genuine, reported finding, not
+  smoothed over.
+- **Measurement-error `epsilon`**: the tolerance-reserve criterion
+  alone crosses its 5pp threshold at `epsilon ≈ 15.13%` — well above
+  the sourced ±5% `INSTRUMENTED_BOLT` baseline, so this criterion is
+  not the binding one at baseline (complexity is).
+- **Torque `K`-range width**: narrow `[0.18,0.22]` and nominal
+  `[0.15,0.25]` both keep B torque-robust; wide `[0.12,0.28]` makes
+  even B's torque control infeasible.
+- **Structural carry-forward** (`delta_F`, `mu`, `eta_proof`): all
+  propagate into 10 mm's `epsilon_max` exactly as in Milestone 7 (no
+  formula altered); B's torque robustness is unaffected by `mu` across
+  the tested range at the baseline `K`.
+- None of these change the *fundamental trade shape* (A always wins
+  mass/packaging, B always wins tolerance/complexity at baseline
+  weights) except the complexity sub-score sensitivity, which is
+  reported as the single most decision-relevant sensitivity found.
+
+## Verification summary (Milestone 8)
+
+- Shank-volume, mass-equals-density-times-volume, and percent-mass-delta
+  formulas verified by hand; mass verified to scale with `d²` (fixed
+  length) and linearly with both length and density.
+- 12 mm mass verified greater than 10 mm mass; group mass verified
+  equal to bolt count × unit mass, using the exact Milestone 1 bolt
+  count.
+- Milestone 5's e/d and s/d ratios for both 10 mm and 12 mm
+  independently reproduced exactly; Milestone 6's 12 mm torque-robust
+  status and Milestone 7's 10 mm direct-verification status both
+  reproduced unchanged.
+- Mandatory-gate logic verified to reject an architecture on a failed
+  installation method and on a failed local-geometry screen
+  independently.
+- Complexity-index hand calculation verified exact and verified
+  independent of structural mass (changing grip length changes mass but
+  never the complexity score).
+- No dollar-cost field exists anywhere in the result dataclasses
+  (checked programmatically).
+- Predeclared decision-rule logic verified deterministic and
+  hand-cross-checked against its own declared thresholds; a genuine
+  "neither architecture admissible" case verified reported honestly.
+- Pareto dominance/nondominance verified by hand against each of the
+  five trade axes; the baseline nondominated result independently
+  confirmed.
+- Milestone 5's 10 mm selection and Milestone 6's 10 mm torque-only
+  `NO_ROBUST_TORQUE_WINDOW` status both independently reproduced
+  unchanged before the Milestone 8 architecture trade.
+- **All 243 Milestone 1–7 tests remain unchanged and passing; 33 new
+  Milestone 8 tests added (276 total).**
+
+## Limitations
+
+Milestone 1–7 limitations all still apply. In addition, for Milestone 8:
+
+- No real procurement cost, supplier quotes, or manufacturing labor
+  cost — the complexity index is an explicitly normalized, non-dollar
+  proxy.
+- No detailed CAD-accurate bolt-head/nut geometry beyond the sourced
+  ISO M10/M12 dimensions used (no thread-root diameter reduction, no
+  lock washer/insert).
+- No actual instrumentation hardware design, wiring-harness mass, or
+  electronics/data-system mass.
+- No fatigue, thermal preload, embedment, prying, or nonlinear flange
+  flexibility.
+- No qualification/certification, reliability statistics, or process
+  capability.
+- No new figures this milestone, for the same reason stated in
+  Milestones 5–7.
+
+## Install and test
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e ".[dev]"
+pytest -q
+python examples/payload_attach_sanity.py
+python examples/bolt_strength_sizing.py
+python examples/preloaded_joint_screening.py
+python examples/preload_feasibility_screening.py
+python examples/bolt_candidate_trade.py
+python examples/torque_preload_screening.py
+python examples/preload_verification_trade.py
+python examples/hardware_architecture_trade.py
+```
+
+---
+
+# Final project synthesis (Milestones 1–8)
+
+- **M1 — load distribution**: rigid, equal-stiffness bolt-group model;
+  8-bolt circular pattern; max tensile bolt 1 at 24,142.1 N; equilibrium
   verified to machine precision.
-- **M2 — strength sizing**: illustrative tensile/shear/interaction
-  margins; 8 mm is the smallest **strength**-passing candidate
-  (governing bolt 1, interaction mode).
+- **M2 — strength**: illustrative tensile/shear/interaction margins;
+  8 mm is the smallest **strength**-passing candidate (governing bolt
+  1, interaction mode).
 - **M3 — preload requirement**: analytical separation/slip-required
   preload (29,258.2 N/bolt, slip-governed at bolt 0) — a screening
   quantity, never a torque spec.
-- **M4 — proof-based preload window**: 8 mm has **no feasible
-  installation-preload window** (target_min 32,509.1 N > target_max
-  31,290.3 N) under illustrative proof/scatter assumptions.
-- **M5 — local joint checks / 10 mm candidate**: 8 mm rejected
-  specifically on M4 grounds (bearing/edge/spacing all pass
-  comfortably at 8 mm); **10 mm becomes the smallest admissible
+- **M4 — proof/preload window**: 8 mm has **no feasible
+  installation-preload window** under illustrative proof/scatter
+  assumptions.
+- **M5 — local joint checks / 10 mm selection**: 8 mm rejected
+  specifically on M4 grounds; **10 mm becomes the smallest admissible
   conceptual candidate** by the predeclared rule.
-- **M6 — torque-control robustness**: 10 mm's **direct** preload window
-  is feasible, but it has **no robust torque window** at the
-  illustrative baseline nut-factor range `K=[0.15,0.25]`.
-- **M7 — direct preload verification robustness**: the same 10 mm
-  window tolerates up to `epsilon_max ≈ 20.1%` symmetric
-  measurement/control error, comfortably above the sourced/illustrative
-  errors (5–10%) of four quantified direct-verification methods — all
-  four are **FEASIBLE**, with proof reserves +32.7% to +38.0%.
+- **M6 — torque robustness**: 10 mm's direct preload window is
+  feasible, but it has **no robust torque window** at the baseline
+  nut-factor range; 12 mm is torque-robust.
+- **M7 — direct verification**: the 10 mm window tolerates
+  `epsilon_max ≈ 20.1%`, comfortably above four quantified
+  direct-verification methods' errors (5–10%) — all **FEASIBLE**.
+- **M8 — architecture closure**: 10 mm + instrumented-bolt
+  verification vs. 12 mm + torque control is a **genuine, nondominated
+  trade** (A wins mass/packaging, B wins tolerance/complexity); the
+  predeclared decision rule selects **`PREFER_B`** at baseline, by a
+  narrow margin — a one-point reduction in any single complexity
+  sub-score flips it to `PREFER_A`.
 
 **Strongest final conclusion, stated only as far as this reduced-order
 model supports:** under the illustrative assumptions used throughout
-this project, **10 mm is the smallest bolt whose direct preload
-requirement (M3/M4/M5) is satisfiable, and it becomes installation-
-robust once a direct preload-verification method is used instead of
-torque-only control.** Torque-only control fails specifically because
-the assumed friction (nut-factor) uncertainty ratio (1.667) exceeds the
-preload window's own tolerance ratio (1.504); every quantified direct
-method's error is well inside the window's ~20% tolerance, so the
-practical resolution this model supports is **not** "upsize to 12 mm"
-but **"use a direct preload-verification method (e.g. an instrumented
-bolt, the only sourced-accuracy option here) rather than torque-only
-control for the 10 mm candidate."** 12 mm remains a valid, materially
-more tolerant alternative (`epsilon_max ≈ 36.8%`, and it is also
-torque-robust) — reported as an available trade, not silently selected.
-This project does not choose between these paths on the user's behalf;
-that decision requires information (real hardware/instrumentation
-availability, cost, mass budget) outside this reduced-order model's
+this project, **both 10 mm + direct preload verification and 12 mm +
+torque control are structurally and operationally admissible
+architectures** — there is no single "correct" answer this model
+forces. The **predeclared, non-post-hoc-tuned decision rule prefers
+12 mm + torque control**, specifically because Architecture A's
+installation-complexity index (driven by instrumented-hardware,
+per-bolt measurement, and calibration burden) exceeds the declared
+threshold — **not** because 10 mm is structurally deficient (it is
+not: its direct-verification proof reserve, +38.0%, is comparable to
+12 mm's +39.9%). This conclusion is **sensitive and narrow**: it flips
+to favor 10 mm under a modest, single-point reduction in any one
+complexity assumption (e.g. a mature instrumented-bolt product
+requiring less calibration overhead than assumed here), and 12 mm
+carries a genuine, quantified mass penalty (+59.8% for the fastener
+group) as the cost of its simpler installation-control story. This
+project does not claim either path is globally optimal; the actual
+hardware decision requires information — real instrumentation product
+maturity, mass-budget sensitivity for this specific payload, and
+installation-process capability — outside this reduced-order model's
 scope.
