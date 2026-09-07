@@ -579,6 +579,237 @@ still apply. In addition, for Milestone 3:
 - No fatigue.
 - No certification claim of any kind.
 
+---
+
+# Milestone 4 — preload feasibility, proof/yield screening, and installation window
+
+**Milestone 4 adds a deterministic preload-feasibility screen: whether
+the Milestone 3 required preload is structurally installable for the
+selected bolt, and over what window. It does NOT size an installation
+torque, model a torque-tension/nut-factor relationship, or perform
+proof testing / certification.**
+
+## Why Milestone 4 is necessary
+
+Milestone 3 computes how much preload is analytically *required* to
+prevent joint separation and interface slip. It explicitly does not ask
+whether that required preload is *feasible* to install on the selected
+bolt: is there any preload the installer could realistically achieve
+that (a) still meets the Milestone 3 requirement even accounting for
+installation scatter, and (b) does not overstress the bolt against its
+proof strength? Milestone 4 answers that question directly, and — new
+in this milestone — reports honestly when the answer is "no."
+
+## Proof/yield basis
+
+`BoltStrengthLimits` holds an illustrative proof strength `S_p` (and
+optionally a yield strength `S_y >= S_p`), Pa. This is a **distinct**
+property set from Milestone 2's `BoltMaterial` (`tensile_allowable`,
+`shear_allowable`), which is a simple working-stress allowable for M2's
+margin checks — not a proof or yield strength. The two are never
+conflated.
+
+Proof/yield loads reuse the **exact** Milestone 2 tensile stress area
+`BoltSection.tensile_area` (no new/conflicting stress-area convention):
+
+```
+F_proof  = S_p * A_t
+F_yield  = S_y * A_t     (if S_y supplied)
+```
+
+## Required vs. allowable (installation) preload
+
+Milestone 3's `F_required` (the larger of the separation- and
+slip-required preloads) is a *theoretical minimum*. Milestone 4 adds a
+deterministic installation **scatter/loss allowance** `delta_F`
+(`0 <= delta_F < 1`) so that even the low end of installation scatter
+still clears the Milestone 3 requirement:
+
+```
+F_target,min = F_required / (1 - delta_F)
+```
+
+and an **installation ceiling** expressed as a fraction `eta_proof`
+(`0 < eta_proof < 1`) of proof load:
+
+```
+F_target,max = eta_proof * F_proof
+```
+
+A feasible installation window exists only if `F_target,min <=
+F_target,max`. Window width `F_target,max - F_target,min` is **never**
+clipped at zero — a negative width is reported as an infeasible window,
+not silently corrected.
+
+## Representative baseline result (8 mm, same M1–M3 illustrative case)
+
+Illustrative baseline: `S_p = 830 MPa`, `S_y = 970 MPa`, `eta_proof =
+0.75`, `delta_F = 0.10` (source audit below).
+
+| Quantity | Value |
+|---|---|
+| `A_t` (reused from M2) | 50.265 mm² |
+| `F_proof = A_t·S_p` | 41,720.4 N |
+| `F_target,max = eta_proof·F_proof` | 31,290.3 N |
+| `F_target,min = F_required/(1-delta_F)` | 32,509.1 N |
+| window width | **−1,218.8 N (infeasible)** |
+| M3 selected preload (factor 1.20) | 35,109.8 N |
+| status vs. M4 window | `NO_INSTALLATION_WINDOW` |
+| max in-service bolt force (bolt 1) | 39,938.3 N |
+| proof reserve | +4.5% |
+| yield reserve | +22.1% |
+
+**Genuine finding, reported honestly, not forced:** at these
+illustrative proof/scatter assumptions, the 8 mm bolt — Milestone 2's
+smallest *strength*-passing candidate — has **no feasible Milestone 4
+preload-installation window**: the scatter-adjusted minimum target
+(32,509.1 N) exceeds the proof-based ceiling (31,290.3 N) by about
+1,219 N (≈3.7% of the minimum target). The Milestone 3 selected preload
+(35,109.8 N) is additionally above the proof ceiling on its own. The
+in-service bolt-tension check alone still shows a positive (+4.5%)
+proof reserve at that same selected preload — i.e. the bolt would not
+immediately yield in service — but the *installation window itself* is
+infeasible under these assumptions. Milestone 4 does not resolve this
+by silently upsizing the bolt; the bolt-size sensitivity below shows
+10 mm and 12 mm do have feasible windows, and a final bolt-size decision
+combining M2 strength and M4 preload feasibility is left open.
+
+## Governing status (deterministic priority)
+
+```
+NO_INSTALLATION_WINDOW
+SELECTED_PRELOAD_TOO_LOW
+SELECTED_PRELOAD_TOO_HIGH
+PROOF_LIMIT_EXCEEDED_IN_SERVICE
+FEASIBLE
+```
+
+`diagnostics` reports every applicable flag simultaneously; `status` is
+the single highest-priority one present.
+
+## Run
+
+```bash
+python examples/preload_feasibility_screening.py
+```
+
+## Sensitivity studies
+
+- **Scatter allowance `delta_F`** (5%/10%/20%, 8 mm): window degrades
+  monotonically as `delta_F` rises — feasible at 5% (+492 N width),
+  infeasible at 10% and 20%.
+- **Proof strength `S_p`** (700/830/900/1000 MPa, 8 mm): ceiling and
+  window width increase monotonically with `S_p` — infeasible at 700
+  and 830 MPa, feasible at 900 and 1000 MPa.
+- **Proof fraction `eta_proof`** (0.60/0.70/0.80, 8 mm): ceiling and
+  window width increase monotonically — infeasible at 0.60/0.70,
+  feasible at 0.80.
+- **Friction coefficient `mu`** (0.10 … 0.40, carried forward from
+  Milestone 3 unchanged): lower `mu` → higher M3 required preload →
+  higher `F_target,min` → infeasible; higher `mu` → lower required
+  preload → feasible. The window flips from infeasible to feasible
+  between `mu=0.20` and `mu=0.25` at this baseline — a Milestone 3
+  friction/slip result propagating directly into Milestone 4
+  installation feasibility, with no M3 formula touched.
+- **Bolt size** (Milestone 2 candidates 5/6/8/10/12 mm): `F_target,min`
+  is bolt-size-independent (M3 mechanics do not depend on diameter);
+  `F_target,max` grows with `A_t`. Result: 5/6/8 mm infeasible, 10/12 mm
+  feasible — even though 8 mm already passes Milestone 2 strength.
+
+## Source audit
+
+Sources actually inspected (see `src/payload_bolts/preload_limits.py`
+module docstring for the full detail):
+
+- **mechanicalc.com, "Bolted Joint Analysis"** — preload as a fraction
+  of proof load (~50% non-permanent/reusable, ~75% semi-permanent, ~90%
+  permanent connections); tensile stress-area formula; torque-based
+  preload uncertainty (~±25% hand torque wrench vs. ~±3–5%
+  elongation/load-sensing methods) and why torque cannot uniquely
+  determine achieved preload (thread/under-head friction variability
+  folded into an uncertain torque coefficient).
+- **engineeringlibrary.org, "Preloaded Bolted Joint Analysis
+  Methodology (NASA)"** — fasteners commonly preloaded to "65 to 90
+  percent of yield strength"; the joint stiffness ratio `phi =
+  Kb/(Kb+Kj)`, algebraically identical to Milestone 3's `C =
+  k_b/(k_b+k_m)` (corroborates the M3 formulation); "±25 percent" hand
+  torque-wrench preload uncertainty.
+- **Shigley, *Mechanical Engineering Design*** (via a search-engine
+  summary, not a direct primary-source read — reported as a
+  secondary/corroborating data point only): `Fi = 0.75*Fp` for reused
+  connections; proof strength ≈ 0.85× yield strength.
+- **NASA-STD-5020** was located but returned unreadable binary content
+  in this environment; it is **not** cited for any specific numeric
+  value here.
+
+Baseline choices: `eta_proof = 0.75` (mid-range of the cited ~50–90%),
+`delta_F = 0.10` (inside the cited ~±25% hand-torque-wrench bound,
+above the ~3–5% achievable with load-sensing methods), illustrative
+`S_p = 830 MPa` / `S_y = 970 MPa` (ratio ≈0.86, consistent with the
+cited ≈0.85 proof-to-yield ratio). None of these are claimed to be a
+sourced real fastener-grade allowable.
+
+## Verification summary (Milestone 4)
+
+- Proof/yield load hand calculations (`F = A_t·S`); exact reuse of the
+  Milestone 2 tensile stress area confirmed (no hidden diameter
+  substitution).
+- Upper-ceiling and lower-target formulas verified by hand
+  (`F_target,max = eta_proof·F_proof`, `F_target,min =
+  F_required/(1-delta_F)`); `delta_F=0` reduces exactly to `F_required`.
+- Monotonicity verified: `F_target,min` rises with `delta_F`;
+  `F_target,max` rises with `S_p` and with `eta_proof`.
+- Exact feasibility boundary (`target_min == target_max`) gives zero
+  window width and zero upper margin; constructed below/above-boundary
+  cases verified infeasible/feasible.
+- Window-width and normalized-window identities verified exactly.
+- M3 selected-preload classification verified against the computed
+  window (correctly `NO_INSTALLATION_WINDOW` at the 8 mm baseline).
+- Maximum in-service bolt force and proof/yield reserve verified by an
+  independent hand reconstruction of `F_preload + C·T_sep` from
+  Milestone 1's signed axial loads.
+- No double-counting of preload verified (`T_sep=0` bolts report
+  `F_bolt == F_preload` exactly).
+- The closed-joint load-sharing formula is verified restricted to bolts
+  that remain closed, with an explicit `in_service_model_valid` flag
+  when no bolt remains closed (probed directly with synthetic
+  edge-case records).
+- Milestone 3's separation-required (19,313.7 N/bolt), slip-required
+  (29,258.2 N/bolt, bolt 0), and overall-required preload values
+  verified preserved exactly.
+- Friction-sensitivity propagation from Milestone 3 into Milestone 4
+  window feasibility verified monotonic and shown to flip feasibility
+  across the tested `mu` range, without altering any M3 formula.
+- Deterministic governing-bolt/status behavior verified under repeated
+  assessment.
+- Invalid proof strength / yield-strength ordering / `eta_proof` /
+  `delta_F` / selected-preload inputs all verified rejected.
+- **All 119 Milestone 1–3 tests remain unchanged and passing; 31 new
+  Milestone 4 tests added (150 total).**
+
+## Limitations
+
+Milestone 1–3 limitations all still apply. In addition, for Milestone 4:
+
+- Proof/yield properties are illustrative, not a sourced real
+  fastener-grade allowable.
+- No torque-tension relationship, nut factor, torque coefficient,
+  lubrication, thread friction, or under-head friction is modeled.
+- No preload relaxation / embedment loss.
+- No thermal preload change.
+- No fatigue.
+- No prying, bearing, thread stripping.
+- No nonlinear joint opening beyond the linear closed-joint model
+  already used in Milestone 3.
+- No proof testing.
+- The installation scatter/loss allowance `delta_F` is a deterministic
+  engineering allowance, **not** a statistical confidence interval.
+- The in-service bolt-force screen uses the Milestone 3 closed-joint
+  linear load-sharing formula and is restricted to bolts that remain
+  closed at the evaluated preload; it is not valid for a separated
+  joint location.
+- No certification claim of any kind.
+
 ## Install and test
 
 ```bash
@@ -589,4 +820,5 @@ pytest -q
 python examples/payload_attach_sanity.py
 python examples/bolt_strength_sizing.py
 python examples/preloaded_joint_screening.py
+python examples/preload_feasibility_screening.py
 ```

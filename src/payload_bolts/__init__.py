@@ -18,12 +18,27 @@ screening, remaining clamp force, local friction-capacity/slip
 screening, deterministic governing bolt/constraint identification, and
 analytical required-preload equations (not a torque specification).
 
-Explicitly out of scope through Milestone 3 (deferred to later
-milestones): torque-to-preload conversion, detailed thread mechanics,
-bolt proof/yield preload limits, preload scatter, embedment/thermal
-preload loss, bearing, tear-out, pull-through, prying, thread
-stripping, fatigue, detailed fastener standards/database lookup,
-structural optimization, and final portfolio figures.
+Milestone 4 scope: preload feasibility, proof/yield screening, and an
+installation-preload window on top of the unchanged Milestone 1-3
+results -- illustrative bolt proof/yield strength limits reusing the
+exact Milestone 2 tensile stress area, a proof-load-fraction
+installation ceiling, a deterministic installation preload
+scatter/loss allowance applied to the Milestone 3 required preload,
+the resulting installation-preload window (honestly reported as
+infeasible when it is), classification of a selected preload against
+that window, and a maximum in-service bolt-tension screen against
+proof/yield load using the Milestone 3 closed-joint load-sharing
+formula. Not a torque specification, qualification procedure,
+certification analysis, or detailed threaded-joint design.
+
+Explicitly out of scope through Milestone 4 (deferred to later
+milestones): torque-to-preload conversion / nut factor / torque
+coefficient / lubrication / thread friction / under-head friction,
+preload relaxation/embedment, thermal preload change, fatigue, prying,
+bearing, tear-out, pull-through, thread stripping, nonlinear joint
+opening beyond the linear closed-joint model, proof testing,
+detailed fastener standards/database lookup, structural optimization,
+and final portfolio figures.
 """
 
 from .geometry import BoltPattern, circular_pattern, rectangular_pattern
@@ -56,6 +71,19 @@ from .preload import (
     required_preload,
     apply_preload_factor,
 )
+from .preload_limits import (
+    BoltStrengthLimits,
+    PreloadLimitResult,
+    InstallationPreloadWindow,
+    PreloadFeasibilityStatus,
+    PreloadFeasibilityResult,
+    compute_preload_limits,
+    min_installation_preload,
+    max_installation_preload,
+    installation_preload_window,
+    classify_selected_preload,
+    assess_preload_feasibility,
+)
 
 __all__ = [
     "BoltPattern",
@@ -85,6 +113,17 @@ __all__ = [
     "assess_preloaded_joint",
     "required_preload",
     "apply_preload_factor",
+    "BoltStrengthLimits",
+    "PreloadLimitResult",
+    "InstallationPreloadWindow",
+    "PreloadFeasibilityStatus",
+    "PreloadFeasibilityResult",
+    "compute_preload_limits",
+    "min_installation_preload",
+    "max_installation_preload",
+    "installation_preload_window",
+    "classify_selected_preload",
+    "assess_preload_feasibility",
 ]
 
 __version__ = "0.1.0"
