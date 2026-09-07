@@ -1230,47 +1230,272 @@ Milestone 1–5 limitations all still apply. In addition, for Milestone 6:
   the text-table sensitivity studies communicate the robust/infeasible
   transitions clearly without one.
 
+## Install and test
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e ".[dev]"
+pytest -q
+python examples/payload_attach_sanity.py
+python examples/bolt_strength_sizing.py
+python examples/preloaded_joint_screening.py
+python examples/preload_feasibility_screening.py
+python examples/bolt_candidate_trade.py
+python examples/torque_preload_screening.py
+python examples/preload_verification_trade.py
+```
+
 ---
 
-# Final project synthesis (Milestones 1–6)
+# Milestone 7 — direct-preload verification methods and installation-control trade
 
-- **M1 — load distribution**: rigid, equal-stiffness bolt-group model;
-  8-bolt circular pattern; max tensile bolt 1 at 24,142.1 N; equilibrium
+**Milestone 7 evaluates direct-preload installation/verification
+approaches as alternatives to Milestone 6's torque-only control. This
+remains a conceptual reduced-order screening study — NOT a production
+work instruction, a calibration procedure, a statistical process-
+capability study, a qualification plan, or a certified tightening
+specification.**
+
+## Why direct preload verification is considered
+
+Milestone 6 found that a single applied torque cannot robustly keep the
+10 mm candidate's achieved preload inside the Milestone 4/5 target
+window at the baseline friction-uncertainty range — because torque only
+*indirectly* infers preload through a friction-dominated nut factor.
+This raises the natural question: does a method that measures preload
+more *directly* (bypassing friction/nut-factor uncertainty entirely) do
+better?
+
+## Direct-control error model
+
+For a method commanding/verifying a nominal target `F_target` with a
+deterministic fractional error band `epsilon` (`0 <= epsilon < 1`):
+
+```
+F_achieved,min = F_target * (1 - epsilon)
+F_achieved,max = F_target * (1 + epsilon)
+```
+
+Rearranging so both achieved bounds stay inside the inherited
+`[F_window,min, F_window,max]` gives the feasible **command window**:
+
+```
+F_command,min = F_window,min / (1 - epsilon)
+F_command,max = F_window,max / (1 + epsilon)
+```
+
+A robust window exists only if `F_command,min <= F_command,max`; never
+clipped when infeasible.
+
+## Feasibility ratio identity
+
+```
+(1 + epsilon) / (1 - epsilon)  <=  F_window,max / F_window,min
+```
+
+the direct-measurement analogue of Milestone 6's nut-factor ratio
+condition. The maximum admissible **symmetric** deterministic error the
+window can tolerate at all:
+
+```
+epsilon_max = (R - 1) / (R + 1),   R = F_window,max / F_window,min
+```
+
+## Baseline 10 mm result — epsilon_max
+
+| Quantity | Value |
+|---|---|
+| `F_window,min` | 32,509.1 N |
+| `F_window,max` | 48,891.0 N |
+| `R = F_max/F_min` | 1.5039 |
+| **`epsilon_max`** | **0.2013 (20.1%)** |
+
+**The 10 mm preload window tolerates up to ~20% symmetric
+measurement/control error before becoming infeasible at all** — far
+looser than it first appears, and, critically, looser than the
+torque-only failure would suggest.
+
+## Method comparison
+
+| Method | Type | ε | Basis | Status (10 mm) |
+|---|---|---|---|---|
+| TORQUE_ONLY (M6 ref.) | indirect | n/a (K-based) | sourced | `NO_ROBUST_TORQUE_WINDOW` |
+| BOLT_ELONGATION | direct | 0.05 | illustrative | **FEASIBLE** (+38.0% proof reserve) |
+| ULTRASONIC | direct | 0.10 | illustrative (conservative choice) | **FEASIBLE** (+32.7%) |
+| LOAD_SENSING_WASHER | direct | 0.10 | illustrative | **FEASIBLE** (+32.7%) |
+| **INSTRUMENTED_BOLT** | direct | **0.05** | **SOURCED** (NASA methodology, ±5%) | **FEASIBLE** (+38.0%) |
+| TURN_OF_NUT | indirect | n/a | not quantified | `METHOD_NOT_QUANTIFIED` |
+
+Only `INSTRUMENTED_BOLT`'s ±5% figure was read directly from a primary
+source (the same NASA preloaded-joint methodology page cited in
+Milestones 4 and 6); the others are explicitly labeled illustrative.
+`TURN_OF_NUT` has no credible independently-read accuracy source and is
+honestly left unquantified rather than assigned an invented number —
+the same convention as Milestone 5's unmodeled thread stripping.
+
+## Torque-only comparison
+
+Kept strictly distinct from the epsilon-based model — Milestone 6's
+`RobustTorqueWindowResult`/`TorqueInstallationResult` are reported
+as-is, never recomputed here. **Every quantified direct method (5–10%
+error) sits comfortably inside `epsilon_max` (~20.1%), while torque
+control's *equivalent* error (`(K_max/K_min − 1)/(K_max/K_min + 1) =
+25.0%`) exceeds it** — a clean, single-number explanation for why
+direct verification succeeds where torque-only control does not.
+
+## 12 mm comparison
+
+| Quantity | 10 mm | 12 mm |
+|---|---|---|
+| `R = F_max/F_min` | 1.5039 | 2.1656 |
+| `epsilon_max` | 20.1% | **36.8%** |
+| Feasible methods | 4 of 5 quantified | 4 of 5 quantified |
+| M6 torque-only status | `NO_ROBUST_TORQUE_WINDOW` | `FEASIBLE` |
+
+12 mm carries substantially more installation tolerance (nearly double
+`epsilon_max`) and is *also* robust under torque-only control — but
+this is reported as a trade advantage only, **not** a silent
+reselection; both sizes have feasible direct-verification methods at
+10 mm.
+
+## In-service proof check
+
+Carried forward exactly via the Milestone 3 closed-joint formula
+`F_bolt = F_preload + C·T_sep` at the maximum achieved preload for each
+feasible method (no double-counting); proof reserves range from +32.7%
+to +38.0% for the 10 mm feasible methods.
+
+## Sensitivity
+
+- **Measurement accuracy** (±2–20%): command-window width narrows
+  monotonically from 14,759.8 N to 106.1 N — still feasible at ±20%,
+  right at the `epsilon_max` boundary.
+- **Bolt size** (10/12 mm): `epsilon_max` roughly doubles from 10 mm to
+  12 mm; both retain the same 4 feasible quantified methods.
+- **Preload scatter `delta_F`** (5/10/20%): `epsilon_max` falls
+  monotonically (22.7% → 20.1% → 14.4%) as scatter allowance grows.
+- **Friction `mu`** (0.10–0.40): at `mu=0.10` the *inherited M4 window
+  itself* is already infeasible (target_min > target_max) — outside
+  `epsilon_max`'s domain entirely; across the remaining feasible range,
+  `epsilon_max` rises monotonically with `mu` (7.1% → 34.0%).
+- **Proof fraction `eta_proof`** (0.60/0.70/0.80): `epsilon_max` rises
+  monotonically (9.2% → 23.2%) as the proof-based ceiling relaxes.
+- **Normalized ratio comparison**: 10 mm preload-window ratio (1.504)
+  vs. torque K-uncertainty ratio (1.667) vs. equivalent direct epsilon
+  at the K ratio (25.0%) vs. `epsilon_max` (20.1%) — a single coherent
+  picture of why one model succeeds and the other does not, at this
+  bolt size.
+
+## Verification summary (Milestone 7)
+
+- Achieved-preload and command-window bounds verified by hand formula;
+  exact round-trip and `epsilon=0` reduction to the raw preload window
+  verified.
+- Exact feasibility boundary and its ratio identity independently
+  verified at a constructed boundary case; `epsilon_max` formula
+  verified directly and against the 10 mm hand-computed value (0.2013).
+- Command window verified to narrow monotonically with `epsilon` and
+  become infeasible above `epsilon_max`.
+- Midpoint nominal target verified to lie inside the feasible command
+  window, with achieved bounds verified inside the preload window.
+- 10 mm/12 mm inherited preload bounds verified preserved exactly; M5's
+  10 mm selection and M6's torque-only status independently reproduced
+  unchanged before M7 screening.
+- In-service proof force verified via independent hand reconstruction
+  from Milestone 1's raw signed axial loads (no double-counting);
+  proof-violation reporting verified at an artificially low proof
+  limit.
+- Friction, `delta_F`, and `eta_proof` sensitivity propagation into
+  `epsilon_max` verified monotonic; 12 mm's `epsilon_max` verified
+  greater than 10 mm's.
+- Deterministic method ordering/table and `METHOD_NOT_QUANTIFIED`
+  handling verified; a genuine "no method feasible" case (window
+  feasible but too narrow for any quantified method) verified reported
+  honestly.
+- **All 212 Milestone 1–6 tests remain unchanged and passing; 31 new
+  Milestone 7 tests added (243 total).**
+
+## Limitations
+
+Milestone 1–6 limitations all still apply. In addition, for Milestone 7:
+
+- No detailed ultrasonic wave-propagation physics.
+- No instrument calibration drift, no washer/load-cell hysteresis, no
+  strain-gauge bridge electronics detail.
+- No bolt-bending effects on elongation readings.
+- No detailed turn-of-nut thread geometry or torque-angle tightening
+  curve (which is exactly why that method is left unquantified).
+- No embedment/relaxation, no thermal preload, no fatigue, no prying,
+  no nonlinear joint opening.
+- No installation process-capability analysis or operator effects —
+  epsilon is a deterministic declared error band, not a statistical
+  distribution.
+- No proof testing, no certification/qualification claim.
+- No new figures this milestone, for the same reason stated in
+  Milestones 5–6.
+
+## Install and test
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e ".[dev]"
+pytest -q
+python examples/payload_attach_sanity.py
+python examples/bolt_strength_sizing.py
+python examples/preloaded_joint_screening.py
+python examples/preload_feasibility_screening.py
+python examples/bolt_candidate_trade.py
+python examples/torque_preload_screening.py
+python examples/preload_verification_trade.py
+```
+
+---
+
+# Final project synthesis (Milestones 1–7)
+
+- **M1 — bolt loads**: rigid, equal-stiffness bolt-group model; 8-bolt
+  circular pattern; max tensile bolt 1 at 24,142.1 N; equilibrium
   verified to machine precision.
-- **M2 — strength screening**: illustrative tensile/shear/interaction
+- **M2 — strength sizing**: illustrative tensile/shear/interaction
   margins; 8 mm is the smallest **strength**-passing candidate
   (governing bolt 1, interaction mode).
-- **M3 — required preload**: analytical separation/slip-required
+- **M3 — preload requirement**: analytical separation/slip-required
   preload (29,258.2 N/bolt, slip-governed at bolt 0) — a screening
   quantity, never a torque spec.
-- **M4 — proof-based installation window**: 8 mm has **no feasible
+- **M4 — proof-based preload window**: 8 mm has **no feasible
   installation-preload window** (target_min 32,509.1 N > target_max
   31,290.3 N) under illustrative proof/scatter assumptions.
-- **M5 — local joint checks + conceptual selection**: 8 mm rejected
+- **M5 — local joint checks / 10 mm candidate**: 8 mm rejected
   specifically on M4 grounds (bearing/edge/spacing all pass
   comfortably at 8 mm); **10 mm becomes the smallest admissible
   conceptual candidate** by the predeclared rule.
-- **M6 — torque-to-preload robustness**: 10 mm's **direct** preload
-  window is feasible, but it has **no robust torque window** at the
-  illustrative baseline nut-factor range `K=[0.15,0.25]` — friction
-  uncertainty alone can push the achieved preload outside the target
-  window for a single fixed torque.
+- **M6 — torque-control robustness**: 10 mm's **direct** preload window
+  is feasible, but it has **no robust torque window** at the
+  illustrative baseline nut-factor range `K=[0.15,0.25]`.
+- **M7 — direct preload verification robustness**: the same 10 mm
+  window tolerates up to `epsilon_max ≈ 20.1%` symmetric
+  measurement/control error, comfortably above the sourced/illustrative
+  errors (5–10%) of four quantified direct-verification methods — all
+  four are **FEASIBLE**, with proof reserves +32.7% to +38.0%.
 
 **Strongest final conclusion, stated only as far as this reduced-order
 model supports:** under the illustrative assumptions used throughout
 this project, **10 mm is the smallest bolt whose direct preload
-requirement (M3/M4/M5) is satisfiable, but it is not installation-robust
-by torque control alone** at the baseline friction-uncertainty range.
-Two independent, computed paths resolve this: **(a)** tighten friction
-control to a narrower nut-factor range (e.g. `K=[0.18,0.22]`, plausible
-with controlled lubrication/torque procedure), which restores a
-feasible robust torque window at 10 mm; or **(b)** upsize to **12 mm**,
-which is robust to torque-installation friction uncertainty even at the
-baseline `K=[0.15,0.25]` range. Direct preload measurement
-(instrumented bolts, load-sensing washers, or elongation measurement —
-none of which are modeled here) would sidestep the nut-factor
-uncertainty question entirely. This project does not select between
-these three paths — that decision requires information (real hardware
-lubrication/torque procedure specifics, mass/cost trade for 12 mm,
-installation-method feasibility) outside this reduced-order model's
+requirement (M3/M4/M5) is satisfiable, and it becomes installation-
+robust once a direct preload-verification method is used instead of
+torque-only control.** Torque-only control fails specifically because
+the assumed friction (nut-factor) uncertainty ratio (1.667) exceeds the
+preload window's own tolerance ratio (1.504); every quantified direct
+method's error is well inside the window's ~20% tolerance, so the
+practical resolution this model supports is **not** "upsize to 12 mm"
+but **"use a direct preload-verification method (e.g. an instrumented
+bolt, the only sourced-accuracy option here) rather than torque-only
+control for the 10 mm candidate."** 12 mm remains a valid, materially
+more tolerant alternative (`epsilon_max ≈ 36.8%`, and it is also
+torque-robust) — reported as an available trade, not silently selected.
+This project does not choose between these paths on the user's behalf;
+that decision requires information (real hardware/instrumentation
+availability, cost, mass budget) outside this reduced-order model's
 scope.

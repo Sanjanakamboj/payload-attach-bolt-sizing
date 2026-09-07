@@ -62,11 +62,30 @@ production torque specification, qualification procedure, statistical
 process-capability analysis, detailed threaded-contact model, or
 certified installation requirement.
 
-Explicitly out of scope through Milestone 6 (deferred to later
-milestones): detailed thread friction / under-head friction modeled
-separately, lubrication-specific coefficients, torque-angle
-tightening, bolt-elongation or ultrasonic preload measurement,
-hydraulic tensioning, prevailing-torque effects, preload
+Milestone 7 scope: direct/indirect preload verification methods as an
+alternative to Milestone 6's torque-only control, for the Milestone 5
+selected 10 mm conceptual candidate -- a deterministic fractional
+measurement/control error model (`F_achieved = F_target*(1 +/-
+epsilon)`), the resulting feasible "command preload window" (honestly
+reported infeasible when it is), the maximum admissible symmetric
+error `epsilon_max` the inherited Milestone 4/5 preload window can
+tolerate at all, illustrative/sourced accuracy models for bolt
+elongation, ultrasonic time-of-flight, load-sensing washers, and
+instrumented/strain-gauged bolts (turn-of-nut explicitly marked
+`METHOD_NOT_QUANTIFIED` -- no credible accuracy source found), a
+predeclared midpoint nominal-target rule, an in-service proof-load
+carry-forward, and a 10 mm vs. 12 mm installation-tolerance comparison.
+Torque-only (Milestone 6) is reported as a distinct reference, never
+recomputed with this milestone's error model. Not a production work
+instruction, calibration procedure, statistical process-capability
+study, qualification plan, or certified tightening specification.
+
+Explicitly out of scope through Milestone 7 (deferred to later
+milestones): detailed ultrasonic wave-propagation physics, instrument
+calibration drift, washer/load-cell hysteresis, strain-gauge bridge
+electronics, bolt-bending effects on elongation readings, detailed
+turn-of-nut thread geometry, torque-angle tightening, hydraulic
+tensioning detail, prevailing-torque effects, preload
 relaxation/embedment, thermal preload change, fatigue, prying,
 nonlinear plate flexibility, detailed flange bending, detailed
 bearing/tear-out interaction, net-section rupture, nonlinear contact
@@ -154,6 +173,25 @@ from .torque_preload import (
     assess_torque_installation,
     back_calculate_torque,
 )
+from .preload_verification import (
+    PreloadVerificationMethod,
+    VerificationStatus,
+    VerificationAccuracyModel,
+    VerifiedPreloadWindow,
+    MethodFeasibilityResult,
+    InstallationMethodTradeResult,
+    BOLT_ELONGATION_MODEL,
+    ULTRASONIC_MODEL,
+    LOAD_SENSING_WASHER_MODEL,
+    INSTRUMENTED_BOLT_MODEL,
+    TURN_OF_NUT_MODEL,
+    ALL_METHOD_MODELS,
+    achieved_preload_bounds,
+    epsilon_max_for_window,
+    command_window,
+    assess_method,
+    evaluate_installation_methods,
+)
 
 __all__ = [
     "BoltPattern",
@@ -225,6 +263,23 @@ __all__ = [
     "robust_torque_window",
     "assess_torque_installation",
     "back_calculate_torque",
+    "PreloadVerificationMethod",
+    "VerificationStatus",
+    "VerificationAccuracyModel",
+    "VerifiedPreloadWindow",
+    "MethodFeasibilityResult",
+    "InstallationMethodTradeResult",
+    "BOLT_ELONGATION_MODEL",
+    "ULTRASONIC_MODEL",
+    "LOAD_SENSING_WASHER_MODEL",
+    "INSTRUMENTED_BOLT_MODEL",
+    "TURN_OF_NUT_MODEL",
+    "ALL_METHOD_MODELS",
+    "achieved_preload_bounds",
+    "epsilon_max_for_window",
+    "command_window",
+    "assess_method",
+    "evaluate_installation_methods",
 ]
 
 __version__ = "0.1.0"
